@@ -1,177 +1,122 @@
 "use client";
-
-import React, { useEffect, useRef } from "react";
-import { createChart, ColorType, ISeriesApi } from "lightweight-charts";
+import React from "react";
+import { createChart, ColorType, IChartApi, ISeriesApi } from "lightweight-charts";
 
 type Bar = { time:number; open:number; high:number; low:number; close:number; volume:number };
+type RiskPlan = { entry:number; stop:number|null } | null;
 
-type SRLevels = { support?: number | null; resistance?: number | null } | null | undefined;
-type RiskPlan = { entry?: number | null; stop?: number | null } | null | undefined;
-
-type CandleChartProps = {
+type Props = {
   data: Bar[];
   sma20?: boolean;
   sma50?: boolean;
   sma200?: boolean;
-  sr?: SRLevels;
+  sr?: { support?: number|null; resistance?: number|null } | null;
   riskPlan?: RiskPlan;
 };
 
-const isFiniteNum = (x: any): x is number =>
-  typeof x === "number" && Number.isFinite(x);
-
-function calcSMA(bars: Bar[], length: number) {
-  if (!bars || bars.length === 0) return [];
-  const vals = bars.map(b => b.close);
-  const out: { time:number; value:number }[] = [];
-  for (let i=0; i<vals.length; i++){
-    if (i < length-1) continue;
-    const slice = vals.slice(i-length+1, i+1);
-    const avg = slice.reduce((a,b)=>a+b,0)/length;
-    out.push({ time: bars[i].time, value: avg });
+function sma(vals:number[], p:number){
+  const out:(number|null)[] = Array(vals.length).fill(null);
+  let s=0;
+  for(let i=0;i<vals.length;i++){
+    s+=vals[i];
+    if(i>=p) s-=vals[i-p];
+    if(i>=p-1) out[i]=s/p;
   }
   return out;
 }
 
-export default function CandleChart({
-  data,
-  sma20,
-  sma50,
-  sma200,
-  sr = null,
-  riskPlan = null,
-}: CandleChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
-  const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+export default function CandleChart({ data, sma20, sma50, sma200, sr, riskPlan }: Props){
+  const containerRef = React.useRef<HTMLDivElement|null>(null);
+  const chartRef = React.useRef<IChartApi|null>(null);
+  const candleRef = React.useRef<ISeriesApi<"Candlestick">|null>(null);
+  const ma20Ref = React.useRef<ISeriesApi<"Line">|null>(null);
+  const ma50Ref = React.useRef<ISeriesApi<"Line">|null>(null);
+  const ma200Ref = React.useRef<ISeriesApi<"Line">|null>(null);
+  const srLinesRef = React.useRef<ISeriesApi<"Line">[]>([]);
+  const rsLinesRef = React.useRef<ISeriesApi<"Line">[]>([]);
+  const resizeObsRef = React.useRef<ResizeObserver|null>(null);
 
-  const sma20Ref = useRef<ISeriesApi<"Line"> | null>(null);
-  const sma50Ref = useRef<ISeriesApi<"Line"> | null>(null);
-  const sma200Ref = useRef<ISeriesApi<"Line"> | null>(null);
+  React.useEffect(()=>{
+    if(!containerRef.current) return;
 
-  const srLinesRef = useRef<any[]>([]);
-  const orderLinesRef = useRef<any[]>([]);
-  const resizeObsRef = useRef<ResizeObserver | null>(null);
+    // crear chart si no existe
+    if(!chartRef.current){
+      chartRef.current = createChart(containerRef.current, {
+        layout: { background:{ type: ColorType.Solid, color:"#ffffff" }, textColor:"#333" },
+        grid: { vertLines:{ visible:true, color:"#eee" }, horzLines:{ visible:true, color:"#eee" } },
+        rightPriceScale: { borderColor:"#e5e7eb" },
+        timeScale: { borderColor:"#e5e7eb" },
+        autoSize: true,
+      });
+      candleRef.current = chartRef.current.addCandlestickSeries({
+        upColor:"#26a69a", downColor:"#ef5350", wickUpColor:"#26a69a", wickDownColor:"#ef5350", borderVisible:false,
+      });
+      ma20Ref.current = chartRef.current.addLineSeries({ color:"#22c55e", lineWidth:2, priceLineVisible:false });
+      ma50Ref.current = chartRef.current.addLineSeries({ color:"#3b82f6", lineWidth:2, priceLineVisible:false });
+      ma200Ref.current = chartRef.current.addLineSeries({ color:"#9333ea", lineWidth:2, priceLineVisible:false });
 
-  /* ---------- 1) Crear chart UNA VEZ (mount) ---------- */
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || chartRef.current) return;
+      // Resize observer (protegido)
+      resizeObsRef.current = new ResizeObserver(()=>{ try{ chartRef.current?.timeScale().fitContent(); }catch{} });
+      if(containerRef.current) resizeObsRef.current.observe(containerRef.current);
+    }
 
-    chartRef.current = createChart(el, {
-      layout: {
-        background: { type: ColorType.Solid, color: "#ffffff" },
-        textColor: "#333",
-      },
-      grid: {
-        vertLines: { visible: true, color: "#eee" },
-        horzLines: { visible: true, color: "#eee" },
-      },
-      rightPriceScale: { borderVisible: false },
-      timeScale: { borderVisible: false },
-      autoSize: true,
-    });
+    // setear datos
+    const c = candleRef.current!;
+    const closeArr = data.map(d=>d.close);
+    c.setData(data.map(d => ({ time:d.time, open:d.open, high:d.high, low:d.low, close:d.close })));
 
-    candleRef.current = chartRef.current.addCandlestickSeries({
-      upColor: "#26a69a",
-      downColor: "#ef5350",
-      borderVisible: false,
-      wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",
-    });
+    const s20 = sma20 ? sma(closeArr,20) : null;
+    const s50 = sma50 ? sma(closeArr,50) : null;
+    const s200 = sma200 ? sma(closeArr,200) : null;
 
-    // Resize estable
-    const ro = new ResizeObserver(() => {
-      if (!chartRef.current || !containerRef.current) return;
-      chartRef.current.applyOptions({ autoSize: true });
-    });
-    ro.observe(el);
-    resizeObsRef.current = ro;
+    if(sma20 && ma20Ref.current) {
+      ma20Ref.current.setData(data.map((d,i)=> s20?.[i] != null ? { time:d.time, value: s20[i]! } : { time:d.time, value: NaN }));
+    } else { ma20Ref.current?.setData([]); }
+
+    if(sma50 && ma50Ref.current) {
+      ma50Ref.current.setData(data.map((d,i)=> s50?.[i] != null ? { time:d.time, value: s50[i]! } : { time:d.time, value: NaN }));
+    } else { ma50Ref.current?.setData([]); }
+
+    if(sma200 && ma200Ref.current) {
+      ma200Ref.current.setData(data.map((d,i)=> s200?.[i] != null ? { time:d.time, value: s200[i]! } : { time:d.time, value: NaN }));
+    } else { ma200Ref.current?.setData([]); }
+
+    // limpiar líneas antiguas
+    srLinesRef.current.forEach(l=> l.setData([] as any));
+    srLinesRef.current = [];
+    rsLinesRef.current.forEach(l=> l.setData([] as any));
+    rsLinesRef.current = [];
+
+    // dibujar soporte / resistencia
+    if(sr && chartRef.current){
+      const mkHoriz = (price:number, color:string) => {
+        const s = chartRef.current!.addLineSeries({ color, lineWidth:1, priceLineVisible:false });
+        s.setData(data.map(d => ({ time:d.time, value: price })));
+        srLinesRef.current.push(s);
+      };
+      if(Number.isFinite(sr?.support as number)) mkHoriz(sr!.support as number, "#60a5fa");   // support (azul)
+      if(Number.isFinite(sr?.resistance as number)) mkHoriz(sr!.resistance as number, "#f59e0b"); // resistance (naranja)
+    }
+
+    // dibujar entrada/stop si hay plan
+    if(riskPlan && chartRef.current){
+      const { entry, stop } = riskPlan;
+      const mk = (price:number, color:string) => {
+        const s = chartRef.current!.addLineSeries({ color, lineWidth:2, priceLineVisible:false });
+        s.setData(data.map(d => ({ time:d.time, value: price })));
+        rsLinesRef.current.push(s);
+      };
+      if(Number.isFinite(entry)) mk(entry, "#16a34a"); // entrada verde
+      if(stop!=null && Number.isFinite(stop)) mk(stop, "#dc2626"); // stop rojo
+    }
+
+    // ajustar vista
+    try { chartRef.current.timeScale().fitContent(); } catch {}
 
     return () => {
-      // Cleanup SOLO al desmontar
-      try { resizeObsRef.current?.disconnect(); } catch {}
-      resizeObsRef.current = null;
-
-      try { chartRef.current?.remove(); } catch {}
-      chartRef.current = null;
-      candleRef.current = null;
-
-      sma20Ref.current = null;
-      sma50Ref.current = null;
-      sma200Ref.current = null;
-
-      srLinesRef.current = [];
-      orderLinesRef.current = [];
+      // no dispose del chart aquí (persistimos). Solo desconectar observer si existe.
+      try { if(resizeObsRef.current && containerRef.current) resizeObsRef.current.unobserve(containerRef.current); } catch {}
     };
-  }, []);
-
-  /* ---------- 2) Actualizar datos y overlays (cada cambio) ---------- */
-  useEffect(() => {
-    // Si aún no existe el chart (primer render), no hacemos nada
-    if (!chartRef.current || !candleRef.current) return;
-
-    // 2.1) Datos de velas
-    try {
-      candleRef.current.setData(data ?? []);
-    } catch {}
-
-    // 2.2) Limpiar overlays previos de forma segura (sin eliminar chart)
-    try { sma20Ref.current?.setData([]); } catch {}
-    try { sma50Ref.current?.setData([]); } catch {}
-    try { sma200Ref.current?.setData([]); } catch {}
-
-    for (const l of srLinesRef.current) { try { l.remove(); } catch {} }
-    srLinesRef.current = [];
-
-    for (const l of orderLinesRef.current) { try { l.remove(); } catch {} }
-    orderLinesRef.current = [];
-
-    // 2.3) Añadir SMAs solicitadas
-    try {
-      if (sma20) {
-        sma20Ref.current = chartRef.current.addLineSeries({ color:"#3b82f6", lineWidth:1 });
-        sma20Ref.current.setData(calcSMA(data,20));
-      } else {
-        sma20Ref.current = null;
-      }
-      if (sma50) {
-        sma50Ref.current = chartRef.current.addLineSeries({ color:"#f59e0b", lineWidth:1 });
-        sma50Ref.current.setData(calcSMA(data,50));
-      } else {
-        sma50Ref.current = null;
-      }
-      if (sma200) {
-        sma200Ref.current = chartRef.current.addLineSeries({ color:"#10b981", lineWidth:1 });
-        sma200Ref.current.setData(calcSMA(data,200));
-      } else {
-        sma200Ref.current = null;
-      }
-    } catch {}
-
-    // 2.4) Soporte / Resistencia
-    const mkHoriz = (y: number, color: string, w=1, style=2) => {
-      if (!chartRef.current) return null;
-      try {
-        const line = chartRef.current.addHorizontalLine(y, { color, lineWidth: w, lineStyle: style });
-        srLinesRef.current.push(line);
-        return line;
-      } catch { return null; }
-    };
-    if (sr && isFiniteNum(sr.support)) mkHoriz(sr.support, "#60a5fa");   // azul
-    if (sr && isFiniteNum(sr.resistance)) mkHoriz(sr.resistance, "#f59e0b"); // naranja
-
-    // 2.5) Plan de riesgo (entrada/stop)
-    const mkOrder = (y: number, color: string, w=2) => {
-      if (!chartRef.current) return null;
-      try {
-        const line = chartRef.current.addHorizontalLine(y, { color, lineWidth: w });
-        orderLinesRef.current.push(line);
-        return line;
-      } catch { return null; }
-    };
-    if (riskPlan && isFiniteNum(riskPlan.entry)) mkOrder(riskPlan.entry, "#22c55e"); // verde
-    if (riskPlan && isFiniteNum(riskPlan.stop)) mkOrder(riskPlan.stop, "#ef4444");   // rojo
   }, [data, sma20, sma50, sma200, sr, riskPlan]);
 
   return <div ref={containerRef} className="w-full h-80" />;
