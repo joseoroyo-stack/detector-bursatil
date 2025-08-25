@@ -1,6 +1,6 @@
 "use client";
-import { Suspense } from "react";
-import React, { useMemo, useState } from "react";
+
+import React, { useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -187,7 +187,7 @@ function AlertCenter(){
   );
 }
 
-/* Top-5 (resumen; si tu backend ya existe, esto lo consume tal cual) */
+/* Top-5 (frontend que llama a tu /api/top-picks) */
 function PremiumTopPicks(){
   const [loading,setLoading]=React.useState(false);
   const [error,setError]=React.useState<string|null>(null);
@@ -360,7 +360,7 @@ function StockSignalApp(){
 
       const patternRes = detectCandlePatterns(bars.map(b=>({open:b.open,high:b.high,low:b.low,close:b.close})), 5);
 
-      // --- Cálculo de tendencia numérica (sin booleanos) ---
+      // --- Tendencia numérica (sin booleanos) ---
       const has20 = typeof _sma20[i] === "number";
       const has50 = typeof _sma50[i] === "number";
       const has200 = typeof _sma200[i] === "number";
@@ -542,7 +542,9 @@ function StockSignalApp(){
     </div>
   );
 }
-export default function Page() {
+
+/* ⛑️ Export por defecto envuelto en <Suspense> para cumplir con useSearchParams */
+export default function Page(){
   return (
     <Suspense fallback={<div className="p-4 text-sm text-neutral-600">Cargando…</div>}>
       <StockSignalApp />
