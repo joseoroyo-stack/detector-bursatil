@@ -1,5 +1,5 @@
 "use client";
-
+import { Suspense } from "react";
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -323,7 +323,7 @@ function PremiumATHPicks(){
 
 type IntervalTF = "1d"|"1w"|"1mo";
 
-export default function StockSignalApp(){
+function StockSignalApp(){
   const [ticker, setTicker] = useState("AAPL");
   const [intervalTF, setIntervalTF] = useState<IntervalTF>("1d");
   const [rangeDays, setRangeDays] = useState<number>(365);
@@ -540,5 +540,12 @@ export default function StockSignalApp(){
 
       <Alert className="mt-4"><AlertTitle>Aviso</AlertTitle><AlertDescription>Prototipo educativo — no es asesoramiento financiero.</AlertDescription></Alert>
     </div>
+  );
+}
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm text-neutral-600">Cargando…</div>}>
+      <StockSignalApp />
+    </Suspense>
   );
 }
