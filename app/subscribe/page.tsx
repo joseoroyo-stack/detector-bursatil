@@ -1,7 +1,10 @@
 // app/subscribe/page.tsx
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
@@ -42,22 +45,19 @@ export default function SubscribePage() {
     utm_content: params.get("utm_content") || "",
   };
 
-  // Si ya hay sesión, no redirigimos a /login: seguimos con el formulario
-  useEffect(() => {
-    // nada que hacer aquí salvo dejar el form listo
-  }, []);
-
   const title =
     plan === "free" ? "Activar cuenta Gratis" :
     plan === "premium" ? "Suscripción Premium" : "Suscripción Comunidad";
 
-  async function ensureAuth(email: string, password: string) {
+  async function ensureAuth(emailRaw: string, password: string) {
+    const email = emailRaw.trim();
+
     // 1) ¿ya logueado?
     const { data: sessionD } = await supabase.auth.getSession();
     if (sessionD.session) return sessionD.session;
 
     // 2) intentar signUp
-    const { data: signUpD, error: signUpErr } = await supabase.auth.signUp({
+    const { error: signUpErr } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -65,7 +65,7 @@ export default function SubscribePage() {
       },
     });
 
-    // Sin confirmación de email: Supabase devuelve sesión directa.
+    // Sin confirmación de email → normalmente crea sesión directa.
     // Si ya existe, probamos signInWithPassword.
     if (signUpErr) {
       const code = (signUpErr as any)?.code || "";
@@ -75,7 +75,7 @@ export default function SubscribePage() {
         /already registered|already exists/i.test(msg);
 
       if (already) {
-        const { data: si, error: siErr } = await supabase.auth.signInWithPassword({
+        const { error: siErr } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
@@ -107,7 +107,7 @@ export default function SubscribePage() {
     setLoading(true);
     try {
       // Asegura autenticación (crea o entra)
-      await ensureAuth(form.email.trim(), form.password);
+      await ensureAuth(form.email, form.password);
 
       // Guardar perfil + UTM en tu tabla (server necesita cookies de sesión)
       const r1 = await fetch("/api/profile-upsert", {
