@@ -3,19 +3,21 @@
 import React, { useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import CandleChart from "@/components/CandleChart";
+import CandleChart from "@/components/CandleChartCompat";
 
-/* =================== HOOKS & HELPERS =================== */
+/* Desactiva SSR para el scanner */
+const ScannerEmbedded = dynamic(() => import("@/components/ScannerEmbedded"), { ssr: false });
+
+/* ===== utils ===== */
 function useLocalStorage<T>(key: string, initial: T) {
   const [value, setValue] = React.useState<T>(initial);
-  React.useEffect(() => {
-    try { const raw = localStorage.getItem(key); if (raw != null) setValue(JSON.parse(raw)); } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  React.useEffect(() => { try { const raw = localStorage.getItem(key); if (raw != null) setValue(JSON.parse(raw)); } catch {} }, []);
   React.useEffect(() => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} }, [key, value]);
   return [value, setValue] as const;
 }
@@ -23,13 +25,9 @@ function useIsMounted(){ const [m,setM]=React.useState(false); React.useEffect((
 
 type Bar = { time:number; open:number; high:number; low:number; close:number; volume:number };
 function sma(vals:number[], p:number){ const out:(number|null)[]=Array(vals.length).fill(null); let s=0; for(let i=0;i<vals.length;i++){ s+=vals[i]; if(i>=p) s-=vals[i-p]; if(i>=p-1) out[i]=s/p; } return out; }
+async function fetchBars(symbol:string, tf:"1d"|"1w"|"1mo", rangeDays:number):Promise<Bar[]>{ const r=await fetch(`/api/prices?symbol=${encodeURIComponent(symbol)}&tf=${tf}&rangeDays=${rangeDays}`,{cache:"no-store"}); const j=await r.json(); if(!j.ok||!Array.isArray(j.data)) return []; return j.data as Bar[]; }
 
-async function fetchBars(symbol:string, tf:"1d"|"1w"|"1mo", rangeDays:number):Promise<Bar[]>{
-  const r = await fetch(`/api/prices?symbol=${encodeURIComponent(symbol)}&tf=${tf}&rangeDays=${rangeDays}`, { cache: "no-store" });
-  const j = await r.json(); if(!j.ok || !Array.isArray(j.data)) return []; return j.data as Bar[];
-}
-
-/* ===== Alertas locales ===== */
+/* ===== alertas locales ===== */
 type AlertRule = { id:string; symbol:string; type:"price_above"|"price_below"; threshold:number; enabled:boolean; oneShot:boolean; lastNotified?:number|null };
 function loadAlerts():AlertRule[]{ try { return JSON.parse(localStorage.getItem("alerts")||"[]"); } catch { return []; } }
 function saveAlerts(list:AlertRule[]){ try { localStorage.setItem("alerts", JSON.stringify(list)); } catch {} }
@@ -74,7 +72,7 @@ function useAlertChecker(){
   },[]);
 }
 
-/* ===== Patrones de velas ===== */
+/* ===== patrones de velas ===== */
 type Candle = { open:number; high:number; low:number; close:number };
 const isBullish=(c:Candle)=> c.close>c.open;
 const isBearish=(c:Candle)=> c.close<c.open;
@@ -100,7 +98,8 @@ function detectCandlePatterns(data:Candle[], lastN=5){
   }
   return { list: Array.from(new Set(list)), bias };
 }
-/* =================== COMPONENTES UI =================== */
+
+/* =================== UI =================== */
 
 function WatchlistCard({ onPick }:{ onPick:(t:string)=>void }){
   const [items, setItems] = useLocalStorage<string[]>("watchlist", []);
@@ -109,28 +108,28 @@ function WatchlistCard({ onPick }:{ onPick:(t:string)=>void }){
   const add = ()=>{ const t=newTicker.trim().toUpperCase(); if(!t) return; if(!items.includes(t)) setItems([t, ...items]); setNewTicker(""); };
   const remove=(t:string)=> setItems(items.filter(x=>x!==t));
   return (
-    <Card>
+    <Card className="card transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg">
       <CardHeader>
         <CardTitle>Watchlist</CardTitle>
-        <CardDescription>Guarda tickers y crea alertas locales de precio.</CardDescription>
+        <CardDescription className="text-muted-foreground">Guarda tickers y crea alertas locales de precio.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex gap-2">
           <Input placeholder="Añadir ticker (p.ej. AAPL, SAN.MC)" value={newTicker}
                  onChange={(e)=>setNewTicker(e.target.value.toUpperCase())}
                  onKeyDown={(e)=>{ if(e.key==="Enter") add(); }} />
-          <Button onClick={add}>Añadir</Button>
+          <Button className="btn-brand">Añadir</Button>
         </div>
-        {!mounted ? <div className="text-sm text-neutral-600">Cargando…</div> : items.length===0 ? (
-          <div className="text-sm text-neutral-600">Aún no hay tickers guardados.</div>
+        {!mounted ? <div className="text-sm text-muted-foreground">Cargando…</div> : items.length===0 ? (
+          <div className="text-sm text-muted-foreground">Aún no hay tickers guardados.</div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {items.map((t,idx)=>(
-              <div key={`${t}-${idx}`} className="flex items-center justify-between rounded-xl border bg-white px-3 py-2">
+              <div key={`${t}-${idx}`} className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 transition-transform hover:-translate-y-0.5 hover:shadow">
                 <div className="font-medium">{t}</div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={()=>onPick(t)}>Analizar</Button>
-                  <Button size="sm" variant="secondary" onClick={()=>addQuickAlert(t)}>Alerta</Button>
+                  <Button size="sm" className="btn-outline-brand" onClick={()=>addQuickAlert(t)}>Alerta</Button>
                   <Button size="sm" variant="destructive" onClick={()=>remove(t)}>Quitar</Button>
                 </div>
               </div>
@@ -142,19 +141,18 @@ function WatchlistCard({ onPick }:{ onPick:(t:string)=>void }){
   );
 }
 
-type AlertRule = { id:string; symbol:string; type:"price_above"|"price_below"; threshold:number; enabled:boolean; oneShot:boolean; lastNotified?:number|null };
 function AlertCenter(){
   const [list, setList] = React.useState<AlertRule[]>([]);
   const mounted = useIsMounted();
   const reload=()=> setList(loadAlerts());
   React.useEffect(()=>{ reload(); },[]);
   return (
-    <Card>
+    <Card className="card transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
             <CardTitle>Centro de alertas</CardTitle>
-            <CardDescription>Gestiona tus alertas locales.</CardDescription>
+            <CardDescription className="text-muted-foreground">Gestiona tus alertas locales.</CardDescription>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={async()=>{ const ok=await ensureNotificationPermission(); if(!ok) alert("Concede permisos de notificación."); else notifyNow("Prueba","Notificaciones activadas"); }}>Probar notificación</Button>
@@ -163,15 +161,15 @@ function AlertCenter(){
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        {!mounted ? <div className="text-sm text-neutral-600">Cargando…</div> : list.length===0 ? (
-          <div className="text-sm text-neutral-600">No tienes alertas. Úsalas desde la Watchlist.</div>
+        {!mounted ? <div className="text-sm text-muted-foreground">Cargando…</div> : list.length===0 ? (
+          <div className="text-sm text-muted-foreground">No tienes alertas. Úsalas desde la Watchlist.</div>
         ) : (
           <div className="space-y-2">
             {list.map((rule, idx)=>(
-              <div key={`${rule.id}-${idx}`} className="flex items-center justify-between rounded-xl border bg-white px-3 py-2">
+              <div key={`${rule.id}-${idx}`} className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2">
                 <div className="text-sm">
                   <div className="font-medium">{rule.symbol} — {rule.type==="price_above"?"Precio ≥":"Precio ≤"} {rule.threshold}</div>
-                  <div className="text-xs text-neutral-500">{rule.enabled? "Activa":"Pausada"} · {rule.oneShot? "1 disparo":"Recurrente"} {rule.lastNotified? `· última: ${new Date(rule.lastNotified).toLocaleString()}`:""}</div>
+                  <div className="text-xs text-muted-foreground">{rule.enabled? "Activa":"Pausada"} · {rule.oneShot? "1 disparo":"Recurrente"} {rule.lastNotified? `· última: ${new Date(rule.lastNotified).toLocaleString()}`:""}</div>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" onClick={()=>{ const cur=loadAlerts(); const upd=cur.map(r=> r.id===rule.id ? {...r, enabled:!r.enabled}: r); saveAlerts(upd); setList(upd); }}>{rule.enabled? "Pausar":"Reanudar"}</Button>
@@ -187,7 +185,7 @@ function AlertCenter(){
   );
 }
 
-/* Top-5 (frontend que llama a tu /api/top-picks) */
+/* ===== bloques premium ===== */
 function PremiumTopPicks(){
   const [loading,setLoading]=React.useState(false);
   const [error,setError]=React.useState<string|null>(null);
@@ -208,41 +206,41 @@ function PremiumTopPicks(){
   };
   React.useEffect(()=>{ fetchPicks(); },[]);
   return (
-    <Card>
+    <Card className="card transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg">
       <CardHeader>
         <CardTitle>Top 5 — luz verde (Premium)</CardTitle>
-        <CardDescription>Acciones “verdes” según mercado, timeframe, rango y exigencia.{mounted&&updatedAt&& <span> Actualizado: {new Date(updatedAt).toLocaleString()}</span>}</CardDescription>
+        <CardDescription className="text-muted-foreground">Acciones “verdes” según mercado, timeframe, rango y exigencia.{mounted&&updatedAt&& <span> Actualizado: {new Date(updatedAt).toLocaleString()}</span>}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <select className="border rounded-md px-2 py-1 text-sm" value={market} onChange={(e)=>{ const m=e.target.value as any; setMarket(m); fetchPicks(m,tf,range,level); }}>
+          <select className="border border-border rounded-md px-2 py-1 text-sm bg-background" value={market} onChange={(e)=>{ const m=e.target.value as any; setMarket(m); fetchPicks(m,tf,range,level); }}>
             <option value="us50">USA (Top 50)</option><option value="sp500">S&P 500</option><option value="eu">Europa (IBEX + DAX)</option>
           </select>
-          <select className="border rounded-md px-2 py-1 text-sm" value={tf} onChange={(e)=>{ const t=e.target.value as any; setTf(t); fetchPicks(market,t,range,level); }}>
+          <select className="border border-border rounded-md px-2 py-1 text-sm bg-background" value={tf} onChange={(e)=>{ const t=e.target.value as any; setTf(t); fetchPicks(market,t,range,level); }}>
             <option value="1d">1D</option><option value="1w">1W</option><option value="1mo">1M</option>
           </select>
-          <select className="border rounded-md px-2 py-1 text-sm" value={range} onChange={(e)=>{ const r=e.target.value as any; setRange(r); fetchPicks(market,tf,r,level); }}>
+          <select className="border border-border rounded-md px-2 py-1 text-sm bg-background" value={range} onChange={(e)=>{ const r=e.target.value as any; setRange(r); fetchPicks(market,tf,r,level); }}>
             <option value="1M">1M</option><option value="3M">3M</option><option value="6M">6M</option><option value="1A">1A</option><option value="MAX">Máx</option>
           </select>
-          <select className="border rounded-md px-2 py-1 text-sm" value={level} onChange={(e)=>{ const L=e.target.value as any; setLevel(L); fetchPicks(market,tf,range,L); }}>
+          <select className="border border-border rounded-md px-2 py-1 text-sm bg-background" value={level} onChange={(e)=>{ const L=e.target.value as any; setLevel(L); fetchPicks(market,tf,range,L); }}>
             <option value="alta">Exigencia: Alta</option><option value="media">Exigencia: Media</option><option value="baja">Exigencia: Baja</option>
           </select>
-          <Button onClick={()=>fetchPicks(market,tf,range,level)} disabled={loading}>{loading? "Actualizando…":"Actualizar"}</Button>
-          <Link href="/landing"><Button variant="outline">Hacerse Premium</Button></Link>
+          <Button className="btn-brand" onClick={()=>fetchPicks(market,tf,range,level)} disabled={loading}>{loading? "Actualizando…":"Actualizar"}</Button>
+          <Link href="/landing"><Button className="btn-outline-brand">Hacerse Premium</Button></Link>
         </div>
-        {error && <div className="text-red-600 text-sm">{error}</div>}
-        {!error && picks.length===0 && <div className="text-sm text-neutral-600">No hay candidatos verdes ahora mismo.</div>}
+        {error && <div className="text-sm text-rose-500">{error}</div>}
+        {!error && picks.length===0 && <div className="text-sm text-muted-foreground">No hay candidatos verdes ahora mismo.</div>}
         <div className="grid md:grid-cols-2 gap-3">
           {picks.map((p,idx)=>(
-            <div key={`${p.symbol}-${idx}`} className="rounded-xl border bg-white p-3 flex items-center justify-between">
+            <div key={`${p.symbol}-${idx}`} className="rounded-xl border border-border bg-background p-3 flex items-center justify-between">
               <div>
                 <div className="text-lg font-semibold">{p.symbol}</div>
-                <div className="text-xs text-neutral-500">total={p.total} · techScore={p.score}{p.newsAdj?` · newsAdj=${p.newsAdj}`:""}</div>
-                <div className="text-[11px] text-neutral-500">{p.rationale}</div>
+                <div className="text-xs text-muted-foreground">total={p.total} · techScore={p.score}{p.newsAdj?` · newsAdj=${p.newsAdj}`:""}</div>
+                <div className="text-[11px] text-muted-foreground">{p.rationale}</div>
               </div>
               <div className="flex gap-2">
                 <Link href={`/?ticker=${p.symbol}&fromTop=1&tf=${tf}&range=${range}`}><Button variant="outline" size="sm">Analizar</Button></Link>
-                <a href={process.env.NEXT_PUBLIC_AFFILIATE_URL || "#"} target="_blank" rel="noreferrer"><Button size="sm">Operar</Button></a>
+                <a href={process.env.NEXT_PUBLIC_AFFILIATE_URL || "#"} target="_blank" rel="noreferrer"><Button size="sm" className="btn-brand">Operar</Button></a>
               </div>
             </div>
           ))}
@@ -276,41 +274,41 @@ function PremiumATHPicks(){
   };
   React.useEffect(()=>{ fetchPicks(); },[]);
   return (
-    <Card>
+    <Card className="card transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg">
       <CardHeader>
         <CardTitle>Máximos históricos (ATH) + soporte</CardTitle>
-        <CardDescription>Muestra valores en nuevo máximo o cerca del máximo con soporte.{mounted&&updatedAt&& <span> Actualizado: {new Date(updatedAt).toLocaleString()}</span>}</CardDescription>
+        <CardDescription className="text-muted-foreground">Muestra valores en nuevo máximo o cerca del máximo con soporte.{mounted&&updatedAt&& <span> Actualizado: {new Date(updatedAt).toLocaleString()}</span>}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <select className="border rounded-md px-2 py-1 text-sm" value={market} onChange={(e)=>setMarket(e.target.value as any)}>
+          <select className="border border-border rounded-md px-2 py-1 text-sm bg-background" value={market} onChange={(e)=>setMarket(e.target.value as any)}>
             <option value="us50">USA (Top 50)</option><option value="sp500">S&P 500</option><option value="eu">Europa (IBEX + DAX)</option>
           </select>
-          <select className="border rounded-md px-2 py-1 text-sm" value={tf} onChange={(e)=>setTf(e.target.value as any)}>
+          <select className="border border-border rounded-md px-2 py-1 text-sm bg-background" value={tf} onChange={(e)=>setTf(e.target.value as any)}>
             <option value="1d">1D</option><option value="1w">1W</option><option value="1mo">1M</option>
           </select>
-          <select className="border rounded-md px-2 py-1 text-sm" value={range} onChange={(e)=>setRange(e.target.value as any)}>
+          <select className="border border-border rounded-md px-2 py-1 text-sm bg-background" value={range} onChange={(e)=>setRange(e.target.value as any)}>
             <option value="1M">1M</option><option value="3M">3M</option><option value="6M">6M</option><option value="1A">1A</option><option value="MAX">Máx</option>
           </select>
           <label className="flex items-center gap-1 text-sm"><input type="checkbox" checked={strict} onChange={(e)=>setStrict(e.target.checked)} /> Solo ATH</label>
-          {!strict && (<div className="flex items-center gap-1 text-sm"><span>tolerancia (%)</span><input type="number" className="border rounded px-2 py-1 w-20" min={0.1} step={0.1} value={tolPct} onChange={(e)=>setTolPct(parseFloat(e.target.value||"0.5"))}/></div>)}
-          <div className="flex items-center gap-1 text-sm"><span>ATH reciente (días)</span><input type="number" className="border rounded px-2 py-1 w-24" min={0} step={5} value={recentDays} onChange={(e)=>setRecentDays(parseInt(e.target.value||"30",10))}/></div>
-          <div className="flex items-center gap-1 text-sm"><span>lookback soporte</span><input type="number" className="border rounded px-2 py-1 w-24" min={10} step={5} value={lookback} onChange={(e)=>setLookback(parseInt(e.target.value||"60",10))}/></div>
-          <Button onClick={fetchPicks} disabled={loading}>{loading? "Buscando…":"Buscar"}</Button>
+          {!strict && (<div className="flex items-center gap-1 text-sm"><span>tolerancia (%)</span><input type="number" className="border border-border rounded px-2 py-1 w-20 bg-background" min={0.1} step={0.1} value={tolPct} onChange={(e)=>setTolPct(parseFloat(e.target.value||"0.5"))}/></div>)}
+          <div className="flex items-center gap-1 text-sm"><span>ATH reciente (días)</span><input type="number" className="border border-border rounded px-2 py-1 w-24 bg-background" min={0} step={5} value={recentDays} onChange={(e)=>setRecentDays(parseInt(e.target.value||"30",10))}/></div>
+          <div className="flex items-center gap-1 text-sm"><span>lookback soporte</span><input type="number" className="border border-border rounded px-2 py-1 w-24 bg-background" min={10} step={5} value={lookback} onChange={(e)=>setLookback(parseInt(e.target.value||"60",10))}/></div>
+          <Button className="btn-brand" onClick={fetchPicks} disabled={loading}>{loading? "Buscando…":"Buscar"}</Button>
         </div>
-        {error && <div className="text-red-600 text-sm">{error}</div>}
-        {!error && picks.length===0 && <div className="text-sm text-neutral-600">Sin candidatos con los criterios actuales.</div>}
+        {error && <div className="text-sm text-rose-500">{error}</div>}
+        {!error && picks.length===0 && <div className="text-sm text-muted-foreground">Sin candidatos con los criterios actuales.</div>}
         <div className="grid md:grid-cols-2 gap-3">
           {picks.map((p,idx)=>(
-            <div key={`${p.symbol}-${idx}`} className="rounded-xl border bg-white p-3 flex items-center justify-between">
+            <div key={`${p.symbol}-${idx}`} className="rounded-xl border border-border bg-background p-3 flex items-center justify-between">
               <div>
                 <div className="text-lg font-semibold">{p.symbol}</div>
-                <div className="text-xs text-neutral-500">close={p.lastClose} · ATH={p.maxClose} · dd={p.ddPct}% · soporte={p.lastSwingLow}</div>
-                <div className="text-xs">{p.rationale}</div>
+                <div className="text-xs text-muted-foreground">close={p.lastClose} · ATH={p.maxClose} · dd={p.ddPct}% · soporte={p.lastSwingLow}</div>
+                <div className="text-xs text-muted-foreground">{p.rationale}</div>
               </div>
               <div className="flex gap-2">
                 <Link href={`/?ticker=${p.symbol}&fromTop=1&tf=${tf}&range=${range}`}><Button variant="outline" size="sm">Analizar</Button></Link>
-                <a href={process.env.NEXT_PUBLIC_AFFILIATE_URL || "#"} target="_blank" rel="noreferrer"><Button size="sm">Operar</Button></a>
+                <a href={process.env.NEXT_PUBLIC_AFFILIATE_URL || "#"} target="_blank" rel="noreferrer"><Button size="sm" className="btn-brand">Operar</Button></a>
               </div>
             </div>
           ))}
@@ -319,7 +317,8 @@ function PremiumATHPicks(){
     </Card>
   );
 }
-/* =================== PÁGINA PRINCIPAL =================== */
+
+/* =================== Página principal =================== */
 
 type IntervalTF = "1d"|"1w"|"1mo";
 
@@ -342,7 +341,6 @@ function StockSignalApp(){
   const [conclusion, setConclusion] = useState<any>(null);
 
   const searchParams = useSearchParams();
-
   useAlertChecker();
 
   React.useEffect(()=>{ const urlTicker=searchParams.get("ticker"); if(urlTicker) setTicker(urlTicker.toUpperCase()); },[searchParams]);
@@ -360,7 +358,6 @@ function StockSignalApp(){
 
       const patternRes = detectCandlePatterns(bars.map(b=>({open:b.open,high:b.high,low:b.low,close:b.close})), 5);
 
-      // --- Tendencia numérica (sin booleanos) ---
       const has20 = typeof _sma20[i] === "number";
       const has50 = typeof _sma50[i] === "number";
       const has200 = typeof _sma200[i] === "number";
@@ -369,12 +366,12 @@ function StockSignalApp(){
       const v200 = has200 ? (_sma200[i] as number) : null;
       const lastClose = closes[i];
 
-      const t1 = (has50 && has200) ? (v50! > v200! ? 1 : -1) : 0;         // 50 vs 200
-      const t2 = (has20 && has50) ? (v20! > v50! ? 0.5 : -0.5) : 0;         // 20 vs 50
-      const t3 = has200 ? (lastClose > v200! ? 0.5 : -0.5) : 0;             // precio vs 200
+      const t1 = (has50 && has200) ? (v50! > v200! ? 1 : -1) : 0;
+      const t2 = (has20 && has50) ? (v20! > v50! ? 0.5 : -0.5) : 0;
+      const t3 = has200 ? (lastClose > v200! ? 0.5 : -0.5) : 0;
       const trendUp = t1 + t2 + t3;
 
-      const baseTechScore = Math.max(-2, Math.min(2, trendUp))/2 + (patternRes.bias||0); // ~[-1..+1]
+      const baseTechScore = Math.max(-2, Math.min(2, trendUp))/2 + (patternRes.bias||0);
       const urlFromTop = (typeof window!=="undefined") ? (new URLSearchParams(window.location.search).get("fromTop")==="1") : false;
       const contextBias = urlFromTop ? 0.2 : 0;
       const techScoreBiased = Math.max(-1, Math.min(1, (baseTechScore + contextBias)));
@@ -386,7 +383,7 @@ function StockSignalApp(){
 
       let color:"red"|"orange"|"green" = "orange";
       if(techScoreBiased >= 0.35) color="green"; else if(techScoreBiased <= -0.25) color="red";
-      let baseText = color==="green" ? "Operación factible (técnico favorable)" : color==="red" ? "Operación poco recomendable (técnico débil)" : "Operación con riesgo (señales mixtas)";
+      let baseText = color==="green" ? "Poco riesgo · Señales sólidas" : color==="red" ? "Alto riesgo" : "Riesgo moderado";
       if(mode==="fund") baseText += " · Basado en noticias (prototipo).";
       if(mode==="mix")  baseText += " · Mixto (técnico + fundamentales).";
       setConclusion({ color, text: baseText });
@@ -399,154 +396,158 @@ function StockSignalApp(){
   const chartData = useMemo(()=>shortBars, [shortBars]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4">
-      <h1 className="text-2xl font-bold">Detector bursátil</h1>
+    <div className="min-h-screen text-foreground">
+      <div className="mx-auto max-w-7xl space-y-6 p-4">
+        <h1 className="text-2xl font-bold">TradePulse</h1>
 
-      {/* Parámetros */}
-      <Card>
-        <CardHeader><CardTitle>Parámetros</CardTitle><CardDescription>Introduce un ticker y pulsa “Analizar”.</CardDescription></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid sm:grid-cols-3 gap-2">
-            <Input placeholder="Ticker (ej. AAPL, MSFT, SAN.MC)" value={ticker} onChange={(e)=>setTicker(e.target.value.toUpperCase())}/>
-            <select className="border rounded-md px-2 py-1 text-sm" value={intervalTF} onChange={(e)=>setIntervalTF(e.target.value as IntervalTF)}>
-              <option value="1d">1D</option><option value="1w">1W</option><option value="1mo">1M</option>
-            </select>
-            <select className="border rounded-md px-2 py-1 text-sm" value={rangeDays} onChange={(e)=>setRangeDays(parseInt(e.target.value,10))}>
-              <option value={180}>6 meses</option><option value={365}>1 año</option><option value={365*2}>2 años</option>
-              <option value={365*5}>5 años</option><option value={365*10}>10 años</option><option value={365*20}>20 años</option>
-            </select>
-          </div>
-          <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-sm text-neutral-600">Modo:</span>
-            <select className="border rounded-md px-2 py-1 text-sm" value={mode} onChange={(e)=>setMode(e.target.value as any)}>
-              <option value="tech">Técnico</option><option value="mix">Mixto</option><option value="fund">Noticias</option>
-            </select>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={analyze} disabled={loading}>{loading? "Cargando…":"Analizar"}</Button>
-            <Button variant="secondary" onClick={()=>addQuickAlert(ticker)}>Crear alerta rápida</Button>
-          </div>
-          {error && <div className="text-sm text-red-600">Error: {error}</div>}
-        </CardContent>
-      </Card>
-
-      {/* Gráfico */}
-      <Card>
-        <CardHeader><CardTitle>Gráfico (velas)</CardTitle><CardDescription>{ticker} · {intervalTF} · {rangeDays} días</CardDescription></CardHeader>
-        <CardContent>
-          {mounted && chartData.length>0 ? (
-            <CandleChart
-              data={chartData}
-              sma20 sma50 sma200
-              sr={null}
-              riskPlan={(analysisShort?.last && Number.isFinite(analysisShort.last)) ? {
-                entry: analysisShort.last as number,
-                stop: stopMethod==="percent" ? +( (analysisShort.last as number) * (1 - pctStop/100)).toFixed(2) : null
-              } : null}
-            />
-          ) : <div className="text-sm text-neutral-600">Introduce un ticker y pulsa “Analizar”.</div>}
-        </CardContent>
-      </Card>
-
-      {/* Gestión de riesgo */}
-      <Card>
-        <CardHeader><CardTitle>Gestión de riesgo</CardTitle><CardDescription>Calcula tamaño de posición y dibuja entrada/stop.</CardDescription></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid sm:grid-cols-4 gap-2">
-            <div><div className="text-xs text-neutral-600 mb-1">Capital (€)</div>
-              <Input type="number" min={100} step={100} value={capital} onChange={(e)=>setCapital(parseFloat(e.target.value||"0"))}/></div>
-            <div><div className="text-xs text-neutral-600 mb-1">% riesgo</div>
-              <Input type="number" min={0.1} step={0.1} value={riskPct} onChange={(e)=>setRiskPct(parseFloat(e.target.value||"0"))}/></div>
-            <div><div className="text-xs text-neutral-600 mb-1">Método stop</div>
-              <select className="border rounded-md px-2 py-1 text-sm w-full" value={stopMethod} onChange={(e)=>setStopMethod(e.target.value as any)}>
-                <option value="percent">Porcentaje</option><option value="atr" disabled>ATR (pronto)</option>
-              </select></div>
-            <div><div className="text-xs text-neutral-600 mb-1">% stop (si %)</div>
-              <Input type="number" min={0.5} step={0.5} value={pctStop} onChange={(e)=>setPctStop(parseFloat(e.target.value||"0"))}/></div>
-          </div>
-
-          {analysisShort?.last && Number.isFinite(analysisShort.last) && (()=> {
-            const entry = analysisShort.last as number;
-            const stop = stopMethod==="percent" ? +(entry*(1-pctStop/100)).toFixed(2) : null;
-            const riskPerShare = stop? +(entry - stop).toFixed(2) : null;
-            const riskCash = +(capital*(riskPct/100)).toFixed(2);
-            const qty = (riskPerShare && riskPerShare>0)? Math.floor(riskCash / riskPerShare) : 0;
-            const tgt1 = stop? +(entry + (entry-stop)).toFixed(2) : null;
-            const tgt2 = stop? +(entry + 2*(entry-stop)).toFixed(2) : null;
-            return (
-              <div className="text-sm">
-                Entrada aprox: <b>{entry.toFixed(2)}</b>
-                {stop && <> · Stop: <b>{stop.toFixed(2)}</b> (−{pctStop}%)</>}
-                {riskPerShare && <> · Riesgo/acción: <b>{riskPerShare.toFixed(2)}</b></>}
-                <br/>
-                Riesgo total: <b>{riskCash}€</b> · Tamaño: <b>{qty}</b> acciones
-                {tgt1 && <> · Objetivo 1R: <b>{tgt1.toFixed(2)}</b></>}
-                {tgt2 && <> · Objetivo 2R: <b>{tgt2.toFixed(2)}</b></>}
-              </div>
-            );
-          })()}
-        </CardContent>
-      </Card>
-
-      {/* Señales técnicas */}
-      <Card>
-        <CardHeader><CardTitle>Señales técnicas</CardTitle><CardDescription>Patrones, medias y semáforo.</CardDescription></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-1">
-            <div className="text-sm font-medium">Patrones de velas (últimas)</div>
-            {analysisShort?.patterns?.length ? (
-              <ul className="list-disc pl-5 text-sm">
-                {analysisShort.patterns.map((p:string,idx:number)=>(<li key={`${p}-${idx}`}>{p}</li>))}
-              </ul>
-            ) : <div className="text-sm text-neutral-600">Sin patrones destacados.</div>}
-          </div>
-          {analysisShort && (
-            <div className="text-sm">
-              Último: <b>{analysisShort.last?.toFixed?.(2) ?? analysisShort.last}</b> ·
-              SMA20: <b>{analysisShort.sma20?.toFixed?.(2) ?? "–"}</b> ·
-              SMA50: <b>{analysisShort.sma50?.toFixed?.(2) ?? "–"}</b> ·
-              SMA200: <b>{analysisShort.sma200?.toFixed?.(2) ?? "–"}</b> ·
-              TechScore: <b>{analysisShort.techScore}</b>
+        {/* Parámetros */}
+        <Card className="card transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+          <CardHeader>
+            <CardTitle>Parámetros</CardTitle>
+            <CardDescription className="text-muted-foreground">Introduce un ticker y pulsa “Analizar”.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid sm:grid-cols-3 gap-2">
+              <Input placeholder="Ticker (ej. AAPL, MSFT, SAN.MC)" value={ticker} onChange={(e)=>setTicker(e.target.value.toUpperCase())}/>
+              <select className="border border-border rounded-md px-2 py-1 text-sm bg-background" value={intervalTF} onChange={(e)=>setIntervalTF(e.target.value as IntervalTF)}>
+                <option value="1d">1D</option><option value="1w">1W</option><option value="1mo">1M</option>
+              </select>
+              <select className="border border-border rounded-md px-2 py-1 text-sm bg-background" value={rangeDays} onChange={(e)=>setRangeDays(parseInt(e.target.value,10))}>
+                <option value={180}>6 meses</option><option value={365}>1 año</option><option value={365*2}>2 años</option>
+                <option value={365*5}>5 años</option><option value={365*10}>10 años</option><option value={365*20}>20 años</option>
+              </select>
             </div>
-          )}
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${
-              conclusion?.color==="green" ? "bg-green-500" :
-              conclusion?.color==="red" ? "bg-red-500" : "bg-amber-500"
-            }`} />
-            <div className="text-sm">{conclusion?.text ?? "Sin evaluación aún."}</div>
-          </div>
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-sm text-muted-foreground">Modo:</span>
+              <select className="border border-border rounded-md px-2 py-1 text-sm bg-background" value={mode} onChange={(e)=>setMode(e.target.value as any)}>
+                <option value="tech">Técnico</option><option value="mix">Mixto</option><option value="fund">Noticias</option>
+              </select>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button className="btn-brand" onClick={analyze} disabled={loading}>{loading? "Cargando…":"Analizar"}</Button>
+              <Button className="btn-outline-brand" onClick={()=>addQuickAlert(ticker)}>Crear alerta rápida</Button>
+            </div>
+            {error && <div className="text-sm text-rose-500">Error: {error}</div>}
+          </CardContent>
+        </Card>
 
-          {/* Botón broker afiliado */}
-          <div className="mt-2">
-            <a
-              href={process.env.NEXT_PUBLIC_AFFILIATE_URL || "#"}
-              target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-white font-semibold shadow hover:bg-green-700 transition"
-            >
-              Operar con Broker
-            </a>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Gráfico */}
+        <Card className="card transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+          <CardHeader><CardTitle>Gráfico (velas)</CardTitle><CardDescription className="text-muted-foreground">{ticker} · {intervalTF} · {rangeDays} días</CardDescription></CardHeader>
+          <CardContent>
+            {mounted && chartData.length>0 ? (
+              <CandleChart
+                data={chartData}
+                sma20 sma50 sma200
+                sr={null}
+                riskPlan={(analysisShort?.last && Number.isFinite(analysisShort.last)) ? {
+                  entry: analysisShort.last as number,
+                  stop: stopMethod==="percent" ? +( (analysisShort.last as number) * (1 - pctStop/100)).toFixed(2) : null
+                } : null}
+              />
+            ) : <div className="text-sm text-muted-foreground">Introduce un ticker y pulsa “Analizar”.</div>}
+            {conclusion && (
+              <div className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2" style={{backgroundColor:conclusion.color==="green"?"#dcfce7":conclusion.color==="orange"?"#fef9c3":"#fee2e2"}}>
+                <span className={`w-3 h-3 rounded-full ${conclusion.color==="green" ? "bg-green-500" : conclusion.color==="red" ? "bg-red-500" : "bg-yellow-500"}`} />
+                <div className="text-sm">{conclusion.text}</div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Watchlist + Alertas */}
-      <WatchlistCard onPick={(t)=>{ setTicker(t); }} />
-      <AlertCenter />
+        {/* Gestión de riesgo */}
+        <Card className="card transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+          <CardHeader><CardTitle>Gestión de riesgo</CardTitle><CardDescription className="text-muted-foreground">Calcula tamaño de posición y dibuja entrada/stop.</CardDescription></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid sm:grid-cols-4 gap-2">
+              <div><div className="text-xs text-muted-foreground mb-1">Capital (€)</div>
+                <Input type="number" min={100} step={100} value={capital} onChange={(e)=>setCapital(parseFloat(e.target.value||"0"))}/></div>
+              <div><div className="text-xs text-muted-foreground mb-1">% riesgo</div>
+                <Input type="number" min={0.1} step={0.1} value={riskPct} onChange={(e)=>setRiskPct(parseFloat(e.target.value||"0"))}/></div>
+              <div><div className="text-xs text-muted-foreground mb-1">Método stop</div>
+                <select className="border border-border rounded-md px-2 py-1 text-sm w-full bg-background" value={stopMethod} onChange={(e)=>setStopMethod(e.target.value as any)}>
+                  <option value="percent">Porcentaje</option><option value="atr" disabled>ATR (pronto)</option>
+                </select></div>
+              <div><div className="text-xs text-muted-foreground mb-1">% stop (si %)</div>
+                <Input type="number" min={0.5} step={0.5} value={pctStop} onChange={(e)=>setPctStop(parseFloat(e.target.value||"0"))}/></div>
+            </div>
 
-      {/* Top-5 y ATH */}
-      <PremiumTopPicks />
-      <PremiumATHPicks />
+            {analysisShort?.last && Number.isFinite(analysisShort.last) && (()=> {
+              const entry = analysisShort.last as number;
+              const stop = stopMethod==="percent" ? +(entry*(1-pctStop/100)).toFixed(2) : null;
+              const riskPerShare = stop? +(entry - stop).toFixed(2) : null;
+              const riskCash = +(capital*(riskPct/100)).toFixed(2);
+              const qty = (riskPerShare && riskPerShare>0)? Math.floor(riskCash / riskPerShare) : 0;
+              const tgt1 = stop? +(entry + (entry-stop)).toFixed(2) : null;
+              const tgt2 = stop? +(entry + 2*(entry-stop)).toFixed(2) : null;
+              return (
+                <div className="text-sm">
+                  Entrada aprox: <b>{entry.toFixed(2)}</b>
+                  {stop && <> · Stop: <b>{stop.toFixed(2)}</b> (−{pctStop}%)</>}
+                  {riskPerShare && <> · Riesgo/acción: <b>{riskPerShare.toFixed(2)}</b></>}
+                  <br/>
+                  Riesgo total: <b>{riskCash}€</b> · Tamaño: <b>{qty}</b> acciones
+                  {tgt1 && <> · Objetivo 1R: <b>{tgt1.toFixed(2)}</b></>}
+                  {tgt2 && <> · Objetivo 2R: <b>{tgt2.toFixed(2)}</b></>}
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
 
-      <Alert className="mt-4"><AlertTitle>Aviso</AlertTitle><AlertDescription>Prototipo educativo — no es asesoramiento financiero.</AlertDescription></Alert>
+        {/* Señales técnicas */}
+        <Card className="card transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+          <CardHeader><CardTitle>Señales técnicas</CardTitle><CardDescription className="text-muted-foreground">Patrones, medias y semáforo.</CardDescription></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Patrones de velas (últimas)</div>
+              {analysisShort?.patterns?.length ? (
+                <ul className="list-disc pl-5 text-sm">
+                  {analysisShort.patterns.map((p:string,idx:number)=>(<li key={`${p}-${idx}`}>{p}</li>))}
+                </ul>
+              ) : <div className="text-sm text-muted-foreground">Sin patrones destacados.</div>}
+            </div>
+            {analysisShort && (
+              <div className="text-sm">
+                Último: <b>{analysisShort.last?.toFixed?.(2) ?? analysisShort.last}</b> ·
+                SMA20: <b>{analysisShort.sma20?.toFixed?.(2) ?? "–"}</b> ·
+                SMA50: <b>{analysisShort.sma50?.toFixed?.(2) ?? "–"}</b> ·
+                SMA200: <b>{analysisShort.sma200?.toFixed?.(2) ?? "–"}</b> ·
+                TechScore: <b>{analysisShort.techScore}</b>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${conclusion?.color==="green" ? "bg-green-500" : conclusion?.color==="red" ? "bg-red-500" : "bg-amber-500"}`} />
+              <div className="text-sm">{conclusion?.text ?? "Sin evaluación aún."}</div>
+            </div>
+
+            <div className="mt-2">
+              <a href={process.env.NEXT_PUBLIC_AFFILIATE_URL || "#"} target="_blank" rel="noopener noreferrer" className="btn-brand inline-flex items-center justify-center">
+                Operar con Broker
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Watchlist + Alertas */}
+        <WatchlistCard onPick={(t)=>{ setTicker(t); }} />
+        <AlertCenter />
+
+        {/* Scanner al final */}
+        <div className="mt-6">
+          <ScannerEmbedded />
+        </div>
+
+        <Alert className="mt-4"><AlertTitle>Aviso</AlertTitle><AlertDescription>Prototipo educativo — no es asesoramiento financiero.</AlertDescription></Alert>
+      </div>
     </div>
   );
 }
 
-/* ⛑️ Export por defecto envuelto en <Suspense> para cumplir con useSearchParams */
+/* Suspense por useSearchParams */
 export default function Page(){
   return (
-    <Suspense fallback={<div className="p-4 text-sm text-neutral-600">Cargando…</div>}>
+    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Cargando…</div>}>
       <StockSignalApp />
     </Suspense>
   );

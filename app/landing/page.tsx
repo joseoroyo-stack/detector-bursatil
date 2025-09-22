@@ -1,282 +1,260 @@
+// app/landing/page.tsx
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+import { useEffect, useState } from "react";
 
-export default function Landing() {
+type Feature = { label: string; free?: boolean; premium?: boolean; community?: boolean };
+
+const FEATURES: Feature[] = [
+  { label: "Gráfico y señales básicas", free: true, premium: true, community: true },
+  { label: "Watchlist y alertas locales", free: true, premium: true, community: true },
+  { label: "Scanner Top Picks (semáforo)", premium: true, community: true },
+  { label: "Scanner Máximos históricos (near ATH)", premium: true, community: true },
+  { label: "Gestión de riesgo avanzada (Soporte Power –3%)", premium: true, community: true },
+  { label: "Preferencias guardadas", premium: true, community: true },
+  { label: "Soporte prioritario", premium: true, community: true },
+  { label: "Vídeo semanal", community: true },
+  { label: "Directo mensual", community: true },
+];
+
+function Tick({ on }: { on: boolean }) {
+  return on ? (
+    <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px]">✓</span>
+  ) : (
+    <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-slate-200 text-slate-500 text-[10px]">—</span>
+  );
+}
+
+export default function PremiumLanding() {
+  const [qs, setQs] = useState("");
+  useEffect(() => {
+    try {
+      setQs(typeof window !== "undefined" ? window.location.search || "" : "");
+    } catch {}
+  }, []);
+
   return (
-    <div className="min-h-screen bg-neutral-50">
-      {/* Top bar */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur border-b">
-        <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
-          <Link href="/" className="font-semibold tracking-tight">Radar Bursátil</Link>
-          <nav className="hidden sm:flex items-center gap-6 text-sm">
-            <a href="#beneficios" className="hover:text-black text-neutral-600">Beneficios</a>
-            <a href="#como-funciona" className="hover:text-black text-neutral-600">Cómo funciona</a>
-            <a href="#precios" className="hover:text-black text-neutral-600">Precios</a>
-            <a href="#faq" className="hover:text-black text-neutral-600">FAQ</a>
-          </nav>
-          <div className="flex items-center gap-2">
-            <Link href="/" className="text-sm text-neutral-600 hover:text-black">Entrar</Link>
-            <Link href="/" passHref>
-              <Button className="text-sm">Abrir el detector</Button>
-            </Link>
+    <div className="mx-auto max-w-6xl px-4 pb-14">
+
+{/* === HERO === */}
+<section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-50 to-emerald-50 dark:from-slate-900 dark:to-slate-900">
+  <div className="grid md:grid-cols-2">
+    <div className="order-2 md:order-1 flex items-end md:items-center">
+      <div className="px-6 sm:px-10 py-10 md:py-16 max-w-xl">
+        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          Análisis simple. Decisiones firmes.
+        </h1>
+        <p className="mt-4 text-slate-700 dark:text-slate-200">
+          Señales claras, riesgo bajo control y un escáner que te ahorra tiempo.
+        </p>
+
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <a
+            href={`/subscribe?plan=premium${qs}`}
+            className="inline-flex items-center rounded-lg bg-emerald-600 px-5 py-3 text-white font-semibold shadow hover:bg-emerald-700"
+          >
+            Unirme a Premium
+          </a>
+        </div>
+
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+          Sin permanencia · Cancela cuando quieras
+        </p>
+      </div>
+    </div>
+
+    <div className="order-1 md:order-2 relative min-h-[70vh] md:min-h-[80vh]">
+      <img
+        src="/images/hero.jpg"
+        alt="Fundador de TradePulse"
+        className="absolute inset-0 h-full w-full object-cover object-[85%_30%]"
+      />
+      <div className="absolute inset-0 bg-black/15 md:bg-black/10" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-32 md:w-40 bg-gradient-to-r from-white to-transparent dark:from-slate-900" />
+    </div>
+  </div>
+</section>
+
+      {/* DEMO */}
+      <section className="mt-12 grid gap-8 md:grid-cols-2 md:items-center">
+        <div className="space-y-4 px-1">
+          <h2 className="text-2xl font-bold">Así detectas oportunidades en segundos</h2>
+          <p className="text-slate-600 dark:text-slate-300">
+            El flujo es simple: elige ticker, mira el semáforo y calcula el tamaño con riesgo controlado.
+          </p>
+          <ul className="list-disc pl-5 text-slate-700 dark:text-slate-300 text-sm">
+            <li>Semáforo claro (verde, naranja, rojo) según confluencias.</li>
+            <li>Stop automático con <b>Soporte Power</b> (–3%).</li>
+            <li>Top Picks y Near ATH para ideas rápidas.</li>
+          </ul>
+        </div>
+        <div
+          className="relative aspect-video overflow-hidden rounded-2xl border bg-slate-100"
+          style={{
+            backgroundImage: "url('/images/demo.jpg')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        />
+      </section>
+
+      {/* BLOQUE INSPIRACIONAL */}
+      <section className="relative mt-12 overflow-hidden rounded-3xl">
+        <div
+          className="relative h-[320px] w-full"
+          style={{
+            backgroundImage: "url('/images/city.jpg')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div className="absolute inset-0 bg-black/55" />
+          <div className="relative z-10 flex h-full flex-col items-center justify-center text-center text-white px-4">
+            <h2 className="text-3xl font-bold">Trading global con TradePulse</h2>
+            <p className="mt-2 max-w-2xl text-slate-200">
+              Analiza, gestiona tu riesgo y encuentra oportunidades en EE.UU. y Europa con una interfaz clara.
+            </p>
           </div>
         </div>
-      </header>
+      </section>
 
-      {/* Hero */}
-      <section className="mx-auto max-w-6xl px-4 py-14 md:py-20">
-        <div className="grid md:grid-cols-2 gap-10 items-center">
-          <div>
-            <motion.h1
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="text-4xl md:text-5xl font-bold tracking-tight"
+      {/* PRICING */}
+      <section className="mt-12 grid gap-6 lg:grid-cols-3">
+        {/* FREE */}
+        <article className="rounded-2xl border bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+          <h3 className="text-xl font-bold">Gratis</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-300">Empieza con lo esencial.</p>
+          <div className="mt-3 text-3xl font-extrabold">0€</div>
+          <ul className="mt-4 space-y-2 text-sm">
+            {FEATURES.map((f) => (
+              <li key={f.label} className="flex items-center gap-2">
+                <Tick on={!!f.free} />
+                <span className={!f.free ? "text-slate-400 line-through" : ""}>{f.label}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5">
+            <Link
+              href={`/subscribe?plan=free${qs}`}
+              className="inline-flex items-center rounded-lg border border-sky-300 bg-white px-4 py-2 text-sky-700 font-semibold shadow hover:bg-sky-50 dark:bg-slate-900 dark:text-sky-200"
             >
-              Señales claras para invertir mejor, sin complicaciones.
-            </motion.h1>
-            <p className="text-neutral-600 mt-4 text-lg">
-              Introduce un ticker y recibe un veredicto simple (verde / naranja / rojo),
-              con entrada, stop y objetivos calculados por riesgo.
-            </p>
-            <div className="flex gap-3 mt-6">
-              <Link href="/" passHref>
-                <Button size="lg">Probar ahora</Button>
-              </Link>
-              <a href="#precios" className="text-sm md:text-base px-4 py-2.5 rounded-xl border bg-white hover:bg-neutral-50">
-                Ver precios
-              </a>
-            </div>
-            <p className="text-xs text-neutral-500 mt-3">Sin configuraciones raras. Sin 200 indicadores. Decisiones claras.</p>
+              Usar versión Gratis
+            </Link>
           </div>
+        </article>
 
-          {/* Mock “captura” */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-            className="bg-white border rounded-2xl p-4 shadow-sm"
-          >
-            <div className="h-56 md:h-72 w-full rounded-xl bg-[linear-gradient(180deg,#f8fafc,#fff)] border flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-sm text-neutral-500">Vista previa</div>
-                <div className="mt-2 text-xl font-semibold">Detector de entradas</div>
-                <div className="mt-4 inline-flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-green-600" />
-                  <span className="text-sm text-neutral-700">Operación factible</span>
+        {/* PREMIUM */}
+        <article className="relative rounded-2xl border-2 border-emerald-500 bg-white p-6 shadow-md dark:border-emerald-600 dark:bg-slate-900/70">
+          <span className="absolute -top-3 left-4 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
+            Recomendado
+          </span>
+          <h3 className="text-xl font-bold">Premium</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-300">Todo lo de Gratis + escáner y riesgo avanzado.</p>
+          <div className="mt-3 text-3xl font-extrabold">
+            29€ <span className="text-base font-semibold text-slate-500">/ mes</span>
+          </div>
+          <ul className="mt-4 space-y-2 text-sm">
+            {FEATURES.map((f) => (
+              <li key={f.label} className="flex items-center gap-2">
+                <Tick on={!!f.premium} />
+                <span className={!f.premium ? "text-slate-400 line-through" : ""}>{f.label}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5">
+            <Link
+              href={`/subscribe?plan=premium${qs}`}
+              className="inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-white font-semibold shadow hover:bg-emerald-700"
+            >
+              Unirme a Premium
+            </Link>
+          </div>
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+            Si no te convence, vuelves a <b>Gratis</b> automáticamente.
+          </p>
+        </article>
+
+        {/* COMUNIDAD */}
+        <article className="rounded-2xl border bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+          <h3 className="text-xl font-bold">Comunidad</h3>
+          <p className="text-sm text-slate-600 dark:text-slate-300">Premium + formación y acompañamiento.</p>
+          <div className="mt-3 text-3xl font-extrabold">
+            49€ <span className="text-base font-semibold text-slate-500">/ mes</span>
+          </div>
+          <ul className="mt-4 space-y-2 text-sm">
+            {FEATURES.map((f) => (
+              <li key={f.label} className="flex items-center gap-2">
+                <Tick on={!!f.community} />
+                <span className={!f.community ? "text-slate-400 line-through" : ""}>{f.label}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-5">
+            <Link
+              href={`/subscribe?plan=comunidad${qs}`}
+              className="inline-flex items-center rounded-lg bg-sky-600 px-4 py-2 text-white font-semibold shadow hover:bg-sky-700"
+            >
+              Unirme a Comunidad
+            </Link>
+          </div>
+        </article>
+      </section>
+
+      {/* TESTIMONIOS */}
+      <section className="mt-12 grid gap-4 md:grid-cols-3">
+        {[
+          { name: "Carlos R.", role: "Swing trader", quote: "El semáforo y el riesgo con Soporte Power me dan mucha tranquilidad." },
+          { name: "Marta G.", role: "Inversora particular", quote: "La prueba de 30 días me convenció. Premium es claro y útil." },
+          { name: "Iván L.", role: "Day trader", quote: "El escáner me ahorra tiempo y me da ideas listas para operar." },
+        ].map((t) => (
+          <article key={t.name} className="rounded-2xl border bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+            <p className="text-sm italic leading-relaxed">“{t.quote}”</p>
+            <div className="mt-3 text-xs text-slate-600 dark:text-slate-300">
+              <b>{t.name}</b> · {t.role}
+            </div>
+          </article>
+        ))}
+      </section>
+
+      {/* FAQ + CTA final */}
+      <section className="relative mt-12 overflow-hidden rounded-3xl">
+        <div
+          className="relative h-[320px] w-full"
+          style={{
+            backgroundImage: "url('/images/london.jpg')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          <div className="absolute inset-0 bg-black/65" />
+          <div className="absolute inset-0 flex items-center">
+            <div className="mx-auto max-w-5xl px-6 text-white grid gap-6 md:grid-cols-2">
+              <div>
+                <h3 className="text-xl font-semibold">Preguntas frecuentes</h3>
+                <div className="mt-3 space-y-3 text-sm text-slate-200">
+                  <div><b>¿Qué incluye Gratis?</b><p>Gráfico, señales básicas, Watchlist y alertas locales.</p></div>
+                  <div><b>¿Qué pasa tras 30 días?</b><p>Si no sigues en Premium, pasas a Gratis automáticamente.</p></div>
+                  <div><b>¿Cómo cancelo?</b><p>Desde tu panel, sin permanencia.</p></div>
+                  <div><b>¿Puedo pasar a Comunidad?</b><p>Sí, incluye vídeo semanal y directo mensual.</p></div>
                 </div>
               </div>
+              <div className="self-center text-center md:text-right">
+                <h4 className="text-lg font-semibold">Empieza con 30 días Premium</h4>
+                <div className="mt-3 flex gap-2 justify-center md:justify-end">
+                  <Link
+                    href={`/subscribe?plan=premium${qs}`}
+                    className="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-white font-semibold shadow hover:bg-emerald-700"
+                  >
+                    Probar ahora
+                  </Link>
+                </div>
+                <p className="mt-2 text-xs text-slate-300">Sin permanencia · Downgrade automático a Gratis</p>
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-3 mt-4">
-              <MiniStat label="Tendencia" value="Alcista" />
-              <MiniStat label="MACD" value="Positivo" />
-              <MiniStat label="ATR(14)" value="0.92" />
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Beneficios */}
-      <section id="beneficios" className="bg-white border-t">
-        <div className="mx-auto max-w-6xl px-4 py-14 md:py-18">
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Por qué elegirnos</h2>
-          <p className="text-neutral-600 mt-2">Hecho para decidir en segundos, no para configurar durante horas.</p>
-
-          <div className="grid md:grid-cols-3 gap-4 mt-8">
-            <Feature
-              title="Análisis simplificado"
-              desc="SMA, MACD, ATR y soportes/resistencias combinados en un solo veredicto."
-            />
-            <Feature
-              title="Noticias con contexto"
-              desc="Tono fundamental (positivo/mixto/negativo) para evitar sesgos y rumores."
-            />
-            <Feature
-              title="Plan de trade listo"
-              desc="Entrada, stop y objetivos por múltiplos de riesgo según tu capital."
-            />
           </div>
         </div>
       </section>
-
-      {/* Cómo funciona */}
-      <section id="como-funciona" className="mx-auto max-w-6xl px-4 py-14 md:py-18">
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Cómo funciona</h2>
-        <div className="grid md:grid-cols-3 gap-4 mt-8">
-          <Step n={1} title="Escribe un ticker" desc="Ej. AAPL, MSFT, SAN.MC…" />
-          <Step n={2} title="Analizamos por ti" desc="Técnico + noticias → semáforo claro." />
-          <Step n={3} title="Actúa con confianza" desc="Plan de entrada/stop/objetivos listo." />
-        </div>
-      </section>
-
-      {/* Precios */}
-      <section id="precios" className="bg-white border-t">
-        <div className="mx-auto max-w-6xl px-4 py-14 md:py-18">
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Planes y precios</h2>
-          <p className="text-neutral-600 mt-2">Empieza con lo esencial, sube cuando lo necesites.</p>
-
-          <div className="grid md:grid-cols-3 gap-4 mt-8">
-            <PriceCard
-              name="Básico"
-              price="19 €/mes"
-              bullets={[
-                "Análisis técnico",
-                "Semáforo de señales",
-                "Plan de entrada/stop",
-              ]}
-              cta="Empezar"
-            />
-            <PriceCard
-              name="Pro"
-              price="39 €/mes"
-              badge="Recomendado"
-              bullets={[
-                "Técnico + fundamental",
-                "Comunidad privada",
-                "Alertas semanales",
-              ]}
-              highlight
-              cta="Probar Pro"
-            />
-            <PriceCard
-              name="Premium"
-              price="79 €/mes"
-              bullets={[
-                "Todo lo de Pro",
-                "Directos mensuales",
-                "Vídeos semanales exclusivos",
-                "Soporte prioritario",
-              ]}
-              cta="Unirme"
-            />
-          </div>
-
-          <p className="text-xs text-neutral-500 mt-4">
-            * Precios orientativos. Puedes cambiar o cancelar cuando quieras. Descuento anual disponible.
-          </p>
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section id="faq" className="mx-auto max-w-6xl px-4 py-14 md:py-18">
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Preguntas frecuentes</h2>
-        <div className="grid md:grid-cols-2 gap-4 mt-8">
-          <Faq q="¿Necesito experiencia previa?" a="No. La plataforma está pensada para simplificar: semáforo y plan listos." />
-          <Faq q="¿Incluye noticias reales?" a="Sí. Integramos titulares y un tono agregado. En plan Pro se priorizan fuentes." />
-          <Faq q="¿Puedo operar desde aquí?" a="Integramos enlaces afiliados a brókers. Operas en tu cuenta, desde su plataforma." />
-          <Faq q="¿Puedo cancelar en cualquier momento?" a="Sí. Sin permanencias. Tu acceso termina al finalizar el periodo pagado." />
-        </div>
-      </section>
-
-      {/* CTA final */}
-      <section className="bg-neutral-900">
-        <div className="mx-auto max-w-6xl px-4 py-14 md:py-18 text-center">
-          <h3 className="text-white text-2xl md:text-3xl font-semibold">Empieza hoy a invertir con claridad.</h3>
-          <p className="text-neutral-300 mt-2">Obtén tu primera señal en menos de un minuto.</p>
-          <div className="mt-6">
-            <Link href="/" passHref>
-              <Button size="lg" className="bg-white text-black hover:bg-neutral-100">Abrir el detector</Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <footer className="border-t bg-white">
-        <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between text-sm text-neutral-600">
-          <span>© {new Date().getFullYear()} Radar Bursátil</span>
-          <div className="flex items-center gap-4">
-            <a href="#precios" className="hover:text-black">Precios</a>
-            <a href="#faq" className="hover:text-black">FAQ</a>
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
-}
-
-/* ---------- Mini componentes ---------- */
-
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border bg-white p-3">
-      <div className="text-xs text-neutral-500">{label}</div>
-      <div className="text-lg font-semibold">{value}</div>
-    </div>
-  );
-}
-
-function Feature({ title, desc }: { title: string; desc: string }) {
-  return (
-    <Card className="rounded-2xl">
-      <CardHeader>
-        <CardTitle className="text-lg">{title}</CardTitle>
-        <CardDescription>{desc}</CardDescription>
-      </CardHeader>
-    </Card>
-  );
-}
-
-function Step({ n, title, desc }: { n: number; title: string; desc: string }) {
-  return (
-    <div className="rounded-2xl border bg-white p-5">
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center text-sm">{n}</div>
-        <div className="font-semibold">{title}</div>
-      </div>
-      <p className="text-neutral-600 text-sm mt-2">{desc}</p>
-    </div>
-  );
-}
-
-function PriceCard({
-  name, price, bullets, badge, highlight, cta,
-}: {
-  name: string;
-  price: string;
-  bullets: string[];
-  badge?: string;
-  highlight?: boolean;
-  cta: string;
-}) {
-  return (
-    <Card className={`rounded-2xl ${highlight ? "border-black shadow-md" : ""}`}>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>{name}</CardTitle>
-          {badge && (
-            <span className="text-xs px-2 py-1 rounded-full bg-black text-white">{badge}</span>
-          )}
-        </div>
-        <CardDescription className="text-xl text-black">{price}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ul className="space-y-2 text-sm">
-          {bullets.map((b, i) => (
-            <li key={i} className="flex items-start gap-2">
-              <span className="mt-1 inline-block w-1.5 h-1.5 rounded-full bg-black" />
-              <span>{b}</span>
-            </li>
-          ))}
-        </ul>
-        <Separator className="my-4" />
-        <Link href="/" passHref>
-          <Button className="w-full">{cta}</Button>
-        </Link>
-      </CardContent>
-    </Card>
-  );
-}
-
-function Faq({ q, a }: { q: string; a: string }) {
-  return (
-    <div className="rounded-2xl border bg-white p-5">
-      <div className="font-medium">{q}</div>
-      <p className="text-neutral-600 text-sm mt-1">{a}</p>
     </div>
   );
 }

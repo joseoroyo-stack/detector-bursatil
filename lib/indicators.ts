@@ -1,130 +1,101 @@
-export type OHLC = { date: string; open: number; high: number; low: number; close: number; volume?: number };
+// lib/indicators.ts
+export type Bar = {
+  time: number; // unix seconds
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+};
 
+/** SMA clásica; devuelve array con null hasta tener "period" datos */
 export function sma(values: number[], period: number): (number | null)[] {
   const out: (number | null)[] = Array(values.length).fill(null);
+  if (period <= 1) return values.map((v) => v ?? null);
   let sum = 0;
   for (let i = 0; i < values.length; i++) {
-    sum += values[i];
+    const v = values[i];
+    sum += v;
     if (i >= period) sum -= values[i - period];
     if (i >= period - 1) out[i] = sum / period;
   }
   return out;
 }
 
-export function ema(values: number[], period: number): (number | null)[] {
-  const out: (number | null)[] = Array(values.length).fill(null);
-  const k = 2 / (period + 1);
-  let prev: number | null = null;
-  for (let i = 0; i < values.length; i++) {
-    if (i < period - 1) continue;
-    if (prev == null) {
-      const seed = values.slice(i - (period - 1), i + 1).reduce((a, b) => a + b, 0) / period;
-      out[i] = seed;
-      prev = seed;
+/** True Range de Wilder */
+function trueRange(bars: Bar[], i: number): number {
+  if (i === 0) return bars[0].high - bars[0].low;
+  const h = bars[i].high, l = bars[i].low, pc = bars[i - 1].close;
+  return Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+}
+
+/** ATR simple (SMA de TR). Puedes cambiar a Wilder si prefieres smoothing exponencial */
+export function atr(bars: Bar[], period: number): (number | null)[] {
+  const out: (number | null)[] = Array(bars.length).fill(null);
+  if (bars.length === 0) return out;
+  const trs = bars.map((_, i) => trueRange(bars, i));
+  const atrSma = sma(trs, period);
+  for (let i = 0; i < bars.length; i++) out[i] = atrSma[i];
+  return out;
+}
+
+/** Último swing-low aproximado: el mínimo de los últimos N (lookback) */
+export function lastSwingLow(bars: Bar[], lookback = 20): number | null {
+  if (bars.length === 0) return null;
+  const n = bars.length;
+  const from = Math.max(0, n - lookback);
+  let min = Number.POSITIVE_INFINITY;
+  for (let i = from; i < n; i++) min = Math.min(min, bars[i].low);
+  return Number.isFinite(min) ? min : null;
+}
+
+/** Detección de soportes por pivotes simples y merge de niveles cercanos */
+export function supports(
+  bars: Bar[],
+  lookback = 120,
+  strength = 2,
+  maxLevels = 5,
+  tolerancePct = 0.5 // niveles a <0.5% se fusionan
+): number[] {
+  if (bars.length === 0) return [];
+  const n = bars.length;
+  const from = Math.max(0, n - lookback);
+  const pivots: number[] = [];
+  for (let i = from + strength; i < n - strength; i++) {
+    const li = bars[i].low;
+    let isPivot = true;
+    for (let k = 1; k <= strength; k++) {
+      if (!(li < bars[i - k].low && li <= bars[i + k].low)) {
+        isPivot = false;
+        break;
+      }
+    }
+    if (isPivot) pivots.push(li);
+  }
+  if (pivots.length === 0) return [];
+
+  // fusionar niveles cercanos
+  pivots.sort((a, b) => a - b);
+  const merged: number[] = [];
+  let bucketStart = pivots[0];
+  let bucketVals: number[] = [pivots[0]];
+  for (let i = 1; i < pivots.length; i++) {
+    const prev = bucketVals[bucketVals.length - 1];
+    const curr = pivots[i];
+    const tol = (prev * tolerancePct) / 100;
+    if (Math.abs(curr - prev) <= tol) {
+      bucketVals.push(curr);
     } else {
-      prev = values[i] * k + (prev as number) * (1 - k);
-      out[i] = prev;
+      // media del bucket
+      merged.push(bucketVals.reduce((s, x) => s + x, 0) / bucketVals.length);
+      bucketStart = curr;
+      bucketVals = [curr];
     }
   }
-  return out;
-}
+  merged.push(bucketVals.reduce((s, x) => s + x, 0) / bucketVals.length);
 
-export function macd(closes: number[], fast = 12, slow = 26, signal = 9) {
-  const emaFast = ema(closes, fast);
-  const emaSlow = ema(closes, slow);
-  const macdLine: (number | null)[] = closes.map((_, i) =>
-    emaFast[i] != null && emaSlow[i] != null ? (emaFast[i]! - emaSlow[i]!) : null
-  );
-  const macdVals: number[] = macdLine.map(v => (v == null ? NaN : v)).filter(v => !Number.isNaN(v));
-  const sigSeries = ema(macdVals, signal);
-  const signalLine: (number | null)[] = Array(macdLine.length).fill(null);
-  let j = 0;
-  for (let i = 0; i < macdLine.length; i++) {
-    if (macdLine[i] != null) {
-      signalLine[i] = sigSeries[j] ?? null;
-      j++;
-    }
-  }
-  const hist: (number | null)[] = macdLine.map((v, i) =>
-    v != null && signalLine[i] != null ? v - (signalLine[i] as number) : null
-  );
-  return { macdLine, signalLine, hist };
-}
-
-export function atr(data: OHLC[], period = 14): (number | null)[] {
-  const out: (number | null)[] = Array(data.length).fill(null);
-  let prevClose: number | null = null;
-  let atrVal: number | null = null;
-  for (let i = 0; i < data.length; i++) {
-    const d = data[i];
-    const tr = prevClose == null ? d.high - d.low : Math.max(
-      d.high - d.low,
-      Math.abs(d.high - prevClose),
-      Math.abs(d.low - prevClose)
-    );
-    if (i === period - 1) {
-      const slice = data.slice(0, period);
-      const sumTR = slice.reduce((acc, dd, idx) => {
-        const pc = idx === 0 ? null : slice[idx - 1].close;
-        const tr0 = pc == null ? dd.high - dd.low : Math.max(
-          dd.high - dd.low,
-          Math.abs(dd.high - pc),
-          Math.abs(dd.low - pc)
-        );
-        return acc + tr0;
-      }, 0);
-      atrVal = sumTR / period;
-      out[i] = atrVal;
-    } else if (i >= period) {
-      atrVal = (atrVal as number) * (period - 1) / period + tr / period;
-      out[i] = atrVal;
-    }
-    prevClose = d.close;
-  }
-  return out;
-}
-
-export function rollingMax(arr: number[], lookback: number): (number | null)[] {
-  const out: (number | null)[] = Array(arr.length).fill(null);
-  for (let i = 0; i < arr.length; i++) {
-    if (i < lookback - 1) continue;
-    out[i] = Math.max(...arr.slice(i - (lookback - 1), i + 1));
-  }
-  return out;
-}
-
-export function rollingMin(arr: number[], lookback: number): (number | null)[] {
-  const out: (number | null)[] = Array(arr.length).fill(null);
-  for (let i = 0; i < arr.length; i++) {
-    if (i < lookback - 1) continue;
-    out[i] = Math.min(...arr.slice(i - (lookback - 1), i + 1));
-  }
-  return out;
-}
-
-export function crossedAbove(a: (number | null)[], b: (number | null)[], i: number) {
-  if (i <= 0) return false;
-  const prev = a[i - 1] != null && b[i - 1] != null ? (a[i - 1]! - b[i - 1]!) : null;
-  const now = a[i] != null && b[i] != null ? (a[i]! - b[i]!) : null;
-  return prev != null && now != null && prev <= 0 && now > 0;
-}
-
-export function crossedBelow(a: (number | null)[], b: (number | null)[], i: number) {
-  if (i <= 0) return false;
-  const prev = a[i - 1] != null && b[i - 1] != null ? (a[i - 1]! - b[i - 1]!) : null;
-  const now = a[i] != null && b[i] != null ? (a[i]! - b[i]!) : null;
-  return prev != null && now != null && prev >= 0 && now < 0;
-}
-
-export function calcSupportResistance(data: OHLC[], lookback = 20) {
-  const highs = data.map(d => d.high);
-  const lows = data.map(d => d.low);
-  const start = Math.max(0, highs.length - lookback);
-  const resistance = Math.max(...highs.slice(start));
-  const support = Math.min(...lows.slice(start));
-  return { support, resistance };
-}
-
-export function formatNumber(n: number, decimals = 2) {
-  return new Intl.NumberFormat("es-ES", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(n);
+  // priorizar por cercanía al último cierre
+  const lastClose = bars[n - 1].close;
+  merged.sort((a, b) => Math.abs(a - lastClose) - Math.abs(b - lastClose));
+  return merged.slice(0, maxLevels);
 }
