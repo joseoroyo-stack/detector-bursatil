@@ -1,32 +1,50 @@
-// app/success/page.tsx
-"use client";
-import { useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
-export default function Success() {
-  const sp = useSearchParams();
-  const plan = sp.get("plan"); // "premium" | "comunidad" | null
+import Link from "next/link";
 
-  useEffect(() => {
-    // Redirige a HOME tras 1.5s
-    const t = setTimeout(() => {
-      window.location.href = "/";
-    }, 1500);
-    return () => clearTimeout(t);
-  }, []);
+type SearchParams = Record<string, string | string[] | undefined>;
+
+export default function SuccessPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const sessionIdRaw = searchParams["session_id"];
+  const sessionId =
+    typeof sessionIdRaw === "string"
+      ? sessionIdRaw
+      : Array.isArray(sessionIdRaw)
+      ? sessionIdRaw[0]
+      : undefined;
 
   return (
-    <main className="max-w-lg mx-auto py-16 text-center">
-      <h1 className="text-2xl font-semibold">¡Pago completado!</h1>
-      <p className="mt-2">
-        {plan === "comunidad"
-          ? "Has desbloqueado toda la plataforma + Comunidad (vídeo semanal y directo mensual)."
-          : "Has desbloqueado toda la plataforma (plan Premium)."}
+    <main className="max-w-xl mx-auto px-4 py-12">
+      <h1 className="text-2xl font-bold mb-2">¡Pago completado!</h1>
+      <p className="text-slate-600 mb-6">
+        Gracias por tu suscripción. En unos segundos activaremos tu acceso.
       </p>
-      <p className="mt-4 opacity-70">Te llevamos a la página principal…</p>
-      <a href="/" className="inline-block mt-6 px-4 py-2 rounded bg-black text-white">
-        Ir ahora
-      </a>
+
+      {sessionId ? (
+        <p className="text-xs text-slate-500 mb-6">
+          ID de sesión de Stripe: <code>{sessionId}</code>
+        </p>
+      ) : null}
+
+      <div className="space-x-3">
+        <Link
+          href="/"
+          className="inline-block px-4 py-2 rounded bg-black text-white"
+        >
+          Ir a la plataforma
+        </Link>
+        <Link
+          href="/account"
+          className="inline-block px-4 py-2 rounded border"
+        >
+          Ver mi cuenta
+        </Link>
+      </div>
     </main>
   );
 }
