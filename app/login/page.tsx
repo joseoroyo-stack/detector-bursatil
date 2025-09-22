@@ -1,8 +1,7 @@
-// app/login/page.tsx
+"use client";
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -20,7 +19,7 @@ export default function LoginPage() {
 
   const redirect = params.get("redirect") || "/";
 
-  // 👉 Si ya hay sesión, no te quedes aquí: vete a redirect.
+  // Si ya hay sesión, vete a redirect
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();
@@ -40,8 +39,6 @@ export default function LoginPage() {
         password: pass,
       });
       if (error) throw error;
-
-      // Ya hay sesión en el cliente, el SessionSync la propagará al server.
       router.replace(redirect);
     } catch (e: any) {
       setErr(e?.message || "Error al iniciar sesión");

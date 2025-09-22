@@ -1,8 +1,7 @@
-// app/subscribe/page.tsx
+"use client";
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-"use client";
 
 import { useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -49,9 +48,7 @@ export default function SubscribePage() {
     plan === "free" ? "Activar cuenta Gratis" :
     plan === "premium" ? "Suscripción Premium" : "Suscripción Comunidad";
 
-  async function ensureAuth(emailRaw: string, password: string) {
-    const email = emailRaw.trim();
-
+  async function ensureAuth(email: string, password: string) {
     // 1) ¿ya logueado?
     const { data: sessionD } = await supabase.auth.getSession();
     if (sessionD.session) return sessionD.session;
@@ -65,8 +62,7 @@ export default function SubscribePage() {
       },
     });
 
-    // Sin confirmación de email → normalmente crea sesión directa.
-    // Si ya existe, probamos signInWithPassword.
+    // Si ya existe el usuario, probamos signInWithPassword
     if (signUpErr) {
       const code = (signUpErr as any)?.code || "";
       const msg = signUpErr.message || "";
@@ -107,7 +103,7 @@ export default function SubscribePage() {
     setLoading(true);
     try {
       // Asegura autenticación (crea o entra)
-      await ensureAuth(form.email, form.password);
+      await ensureAuth(form.email.trim(), form.password);
 
       // Guardar perfil + UTM en tu tabla (server necesita cookies de sesión)
       const r1 = await fetch("/api/profile-upsert", {
@@ -129,7 +125,6 @@ export default function SubscribePage() {
       if (!r1.ok) throw new Error(j1?.error || "No se pudo guardar tu perfil");
 
       if (plan === "free") {
-        // Alta gratis/trial sin Stripe
         const r = await fetch("/api/free-enroll", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -139,7 +134,7 @@ export default function SubscribePage() {
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok || !j?.ok) throw new Error(j?.error || "No se pudo activar Gratis");
-        router.replace("/"); // dentro de la app
+        router.replace("/");
         return;
       }
 
@@ -171,7 +166,6 @@ export default function SubscribePage() {
       </p>
 
       <form onSubmit={onSubmit} className="space-y-4">
-        {/* Email */}
         <div>
           <label className="block text-sm mb-1">Email</label>
           <input
@@ -182,7 +176,6 @@ export default function SubscribePage() {
             required
           />
         </div>
-        {/* Password */}
         <div>
           <label className="block text-sm mb-1">Contraseña</label>
           <input
@@ -198,7 +191,6 @@ export default function SubscribePage() {
           </p>
         </div>
 
-        {/* Perfil */}
         <div>
           <label className="block text-sm mb-1">Nombre completo</label>
           <input
