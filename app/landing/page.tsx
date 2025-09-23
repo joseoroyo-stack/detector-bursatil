@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 type Feature = {
   label: string;
@@ -36,8 +37,10 @@ function Tick({ on }: { on: boolean }) {
 }
 
 export default function PremiumLanding() {
-  // Reconstruimos la query (utm_...) para pasársela a los enlaces
   const [qs, setQs] = useState("");
+  const [user, setUser] = useState<any>(null);
+  const supabase = createClientComponentClient();
+
   useEffect(() => {
     try {
       setQs(typeof window !== "undefined" ? window.location.search || "" : "");
@@ -46,8 +49,36 @@ export default function PremiumLanding() {
     }
   }, []);
 
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user);
+    });
+  }, [supabase]);
+
   return (
     <div className="mx-auto max-w-6xl px-4 pb-14">
+      {/* === HEADER === */}
+      <header className="flex justify-between items-center py-4 mb-4">
+        <h1 className="text-xl font-bold">TradePulse</h1>
+        <div>
+          {user ? (
+            <Link
+              href="/app"
+              className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              Ir a la plataforma
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700"
+            >
+              Iniciar sesión
+            </Link>
+          )}
+        </div>
+      </header>
+
       {/* === HERO === */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-50 to-emerald-50 dark:from-slate-900 dark:to-slate-900">
         <div className="grid md:grid-cols-2">
@@ -67,7 +98,21 @@ export default function PremiumLanding() {
                 >
                   Unirme a Premium
                 </Link>
-                {/* ⛔️ Quitado el botón “Ver la plataforma” */}
+                {user ? (
+                  <Link
+                    href="/app"
+                    className="inline-flex items-center rounded-lg border border-emerald-600 px-5 py-3 text-emerald-700 font-semibold shadow hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-slate-800"
+                  >
+                    Ir a la plataforma
+                  </Link>
+                ) : (
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center rounded-lg border border-sky-600 px-5 py-3 text-sky-700 font-semibold shadow hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-slate-800"
+                  >
+                    Iniciar sesión
+                  </Link>
+                )}
               </div>
 
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
