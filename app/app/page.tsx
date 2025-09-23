@@ -2,5 +2,4 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// Reexporta la plataforma desde app/home-clients.tsx
-export { default } from "../home-clients";
+export { default } from "../home-client";

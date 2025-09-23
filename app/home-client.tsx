@@ -240,7 +240,7 @@ function PremiumTopPicks(){
                 <div className="text-[11px] text-muted-foreground">{p.rationale}</div>
               </div>
               <div className="flex gap-2">
-                <Link href={`/?ticker=${p.symbol}&fromTop=1&tf=${tf}&range=${range}`}><Button variant="outline" size="sm">Analizar</Button></Link>
+                <Link href={`/app?ticker=${p.symbol}&fromTop=1&tf=${tf}&range=${range}`}><Button variant="outline" size="sm">Analizar</Button></Link>
                 <a href={process.env.NEXT_PUBLIC_AFFILIATE_URL || "#"} target="_blank" rel="noreferrer"><Button size="sm" className="btn-brand">Operar</Button></a>
               </div>
             </div>
@@ -308,7 +308,7 @@ function PremiumATHPicks(){
                 <div className="text-xs text-muted-foreground">{p.rationale}</div>
               </div>
               <div className="flex gap-2">
-                <Link href={`/?ticker=${p.symbol}&fromTop=1&tf=${tf}&range=${range}`}><Button variant="outline" size="sm">Analizar</Button></Link>
+                <Link href={`/app?ticker=${p.symbol}&fromTop=1&tf=${tf}&range=${range}`}><Button variant="outline" size="sm">Analizar</Button></Link>
                 <a href={process.env.NEXT_PUBLIC_AFFILIATE_URL || "#"} target="_blank" rel="noreferrer"><Button size="sm" className="btn-brand">Operar</Button></a>
               </div>
             </div>
