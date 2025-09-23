@@ -1,10 +1,15 @@
 // app/landing/page.tsx
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+"use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
-type Feature = { label: string; free?: boolean; premium?: boolean; community?: boolean };
+type Feature = {
+  label: string;
+  free?: boolean;
+  premium?: boolean;
+  community?: boolean;
+};
 
 const FEATURES: Feature[] = [
   { label: "Gráfico y señales básicas", free: true, premium: true, community: true },
@@ -20,28 +25,26 @@ const FEATURES: Feature[] = [
 
 function Tick({ on }: { on: boolean }) {
   return on ? (
-    <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px]">✓</span>
+    <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px]">
+      ✓
+    </span>
   ) : (
-    <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-slate-200 text-slate-500 text-[10px]">—</span>
+    <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-slate-200 text-slate-500 text-[10px]">
+      —
+    </span>
   );
 }
 
-type SearchParams = Record<string, string | string[] | undefined>;
-
-export default function PremiumLanding({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
+export default function PremiumLanding() {
   // Reconstruimos la query (utm_...) para pasársela a los enlaces
-  const qsRaw = new URLSearchParams(
-    Object.entries(searchParams).reduce<Record<string, string>>((acc, [k, v]) => {
-      if (typeof v === "string") acc[k] = v;
-      else if (Array.isArray(v) && v.length) acc[k] = v[0];
-      return acc;
-    }, {})
-  ).toString();
-  const qs = qsRaw ? `?${qsRaw}` : "";
+  const [qs, setQs] = useState("");
+  useEffect(() => {
+    try {
+      setQs(typeof window !== "undefined" ? window.location.search || "" : "");
+    } catch {
+      /* noop */
+    }
+  }, []);
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-14">
@@ -64,14 +67,7 @@ export default function PremiumLanding({
                 >
                   Unirme a Premium
                 </Link>
-
-                {/* CTA opcional directa a la plataforma (si quieres que curioseen primero) */}
-                <Link
-                  href={`/app${qs}`}
-                  className="inline-flex items-center rounded-lg border px-5 py-3 font-semibold hover:bg-white/50 dark:hover:bg-slate-800/50"
-                >
-                  Ver la plataforma
-                </Link>
+                {/* ⛔️ Quitado el botón “Ver la plataforma” */}
               </div>
 
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
@@ -101,7 +97,9 @@ export default function PremiumLanding({
           </p>
           <ul className="list-disc pl-5 text-slate-700 dark:text-slate-300 text-sm">
             <li>Semáforo claro (verde, naranja, rojo) según confluencias.</li>
-            <li>Stop automático con <b>Soporte Power</b> (–3%).</li>
+            <li>
+              Stop automático con <b>Soporte Power</b> (–3%).
+            </li>
             <li>Top Picks y Near ATH para ideas rápidas.</li>
           </ul>
         </div>
@@ -217,22 +215,6 @@ export default function PremiumLanding({
         </article>
       </section>
 
-      {/* TESTIMONIOS */}
-      <section className="mt-12 grid gap-4 md:grid-cols-3">
-        {[
-          { name: "Carlos R.", role: "Swing trader", quote: "El semáforo y el riesgo con Soporte Power me dan mucha tranquilidad." },
-          { name: "Marta G.", role: "Inversora particular", quote: "La prueba de 30 días me convenció. Premium es claro y útil." },
-          { name: "Iván L.", role: "Day trader", quote: "El escáner me ahorra tiempo y me da ideas listas para operar." },
-        ].map((t) => (
-          <article key={t.name} className="rounded-2xl border bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
-            <p className="text-sm italic leading-relaxed">“{t.quote}”</p>
-            <div className="mt-3 text-xs text-slate-600 dark:text-slate-300">
-              <b>{t.name}</b> · {t.role}
-            </div>
-          </article>
-        ))}
-      </section>
-
       {/* FAQ + CTA final */}
       <section className="relative mt-12 overflow-hidden rounded-3xl">
         <div
@@ -249,10 +231,22 @@ export default function PremiumLanding({
               <div>
                 <h3 className="text-xl font-semibold">Preguntas frecuentes</h3>
                 <div className="mt-3 space-y-3 text-sm text-slate-200">
-                  <div><b>¿Qué incluye Gratis?</b><p>Gráfico, señales básicas, Watchlist y alertas locales.</p></div>
-                  <div><b>¿Qué pasa tras 30 días?</b><p>Si no sigues en Premium, pasas a Gratis automáticamente.</p></div>
-                  <div><b>¿Cómo cancelo?</b><p>Desde tu panel, sin permanencia.</p></div>
-                  <div><b>¿Puedo pasar a Comunidad?</b><p>Sí, incluye vídeo semanal y directo mensual.</p></div>
+                  <div>
+                    <b>¿Qué incluye Gratis?</b>
+                    <p>Gráfico, señales básicas, Watchlist y alertas locales.</p>
+                  </div>
+                  <div>
+                    <b>¿Qué pasa tras 30 días?</b>
+                    <p>Si no sigues en Premium, pasas a Gratis automáticamente.</p>
+                  </div>
+                  <div>
+                    <b>¿Cómo cancelo?</b>
+                    <p>Desde tu panel, sin permanencia.</p>
+                  </div>
+                  <div>
+                    <b>¿Puedo pasar a Comunidad?</b>
+                    <p>Sí, incluye vídeo semanal y directo mensual.</p>
+                  </div>
                 </div>
               </div>
               <div className="self-center text-center md:text-right">
