@@ -1,13 +1,16 @@
 // app/login/page.tsx
 "use client";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 function LoginForm() {
   const router = useRouter();
-  const sp = useSearchParams();
+  const sp = useSearchParams(); // <- dentro de un componente que irá envuelto en <Suspense />
   const redirectTo = sp.get("redirect") || "/app";
 
   const supabase = createClientComponentClient();
