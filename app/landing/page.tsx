@@ -1,8 +1,8 @@
 // app/landing/page.tsx
-"use client";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
 type Feature = { label: string; free?: boolean; premium?: boolean; community?: boolean };
 
@@ -26,55 +26,71 @@ function Tick({ on }: { on: boolean }) {
   );
 }
 
-export default function PremiumLanding() {
-  const [qs, setQs] = useState("");
-  useEffect(() => {
-    try {
-      setQs(typeof window !== "undefined" ? window.location.search || "" : "");
-    } catch {}
-  }, []);
+type SearchParams = Record<string, string | string[] | undefined>;
+
+export default function PremiumLanding({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  // Reconstruimos la query (utm_...) para pasársela a los enlaces
+  const qsRaw = new URLSearchParams(
+    Object.entries(searchParams).reduce<Record<string, string>>((acc, [k, v]) => {
+      if (typeof v === "string") acc[k] = v;
+      else if (Array.isArray(v) && v.length) acc[k] = v[0];
+      return acc;
+    }, {})
+  ).toString();
+  const qs = qsRaw ? `?${qsRaw}` : "";
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-14">
+      {/* === HERO === */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-50 to-emerald-50 dark:from-slate-900 dark:to-slate-900">
+        <div className="grid md:grid-cols-2">
+          <div className="order-2 md:order-1 flex items-end md:items-center">
+            <div className="px-6 sm:px-10 py-10 md:py-16 max-w-xl">
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                Análisis simple. Decisiones firmes.
+              </h1>
+              <p className="mt-4 text-slate-700 dark:text-slate-200">
+                Señales claras, riesgo bajo control y un escáner que te ahorra tiempo.
+              </p>
 
-{/* === HERO === */}
-<section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-50 to-emerald-50 dark:from-slate-900 dark:to-slate-900">
-  <div className="grid md:grid-cols-2">
-    <div className="order-2 md:order-1 flex items-end md:items-center">
-      <div className="px-6 sm:px-10 py-10 md:py-16 max-w-xl">
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-          Análisis simple. Decisiones firmes.
-        </h1>
-        <p className="mt-4 text-slate-700 dark:text-slate-200">
-          Señales claras, riesgo bajo control y un escáner que te ahorra tiempo.
-        </p>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <Link
+                  href={`/subscribe?plan=premium${qs}`}
+                  className="inline-flex items-center rounded-lg bg-emerald-600 px-5 py-3 text-white font-semibold shadow hover:bg-emerald-700"
+                >
+                  Unirme a Premium
+                </Link>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <a
-            href={`/subscribe?plan=premium${qs}`}
-            className="inline-flex items-center rounded-lg bg-emerald-600 px-5 py-3 text-white font-semibold shadow hover:bg-emerald-700"
-          >
-            Unirme a Premium
-          </a>
+                {/* CTA opcional directa a la plataforma (si quieres que curioseen primero) */}
+                <Link
+                  href={`/app${qs}`}
+                  className="inline-flex items-center rounded-lg border px-5 py-3 font-semibold hover:bg-white/50 dark:hover:bg-slate-800/50"
+                >
+                  Ver la plataforma
+                </Link>
+              </div>
+
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Sin permanencia · Cancela cuando quieras
+              </p>
+            </div>
+          </div>
+
+          <div className="order-1 md:order-2 relative min-h-[70vh] md:min-h-[80vh]">
+            <img
+              src="/images/hero.jpg"
+              alt="Fundador de TradePulse"
+              className="absolute inset-0 h-full w-full object-cover object-[85%_30%]"
+            />
+            <div className="absolute inset-0 bg-black/15 md:bg-black/10" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 w-32 md:w-40 bg-gradient-to-r from-white to-transparent dark:from-slate-900" />
+          </div>
         </div>
-
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-          Sin permanencia · Cancela cuando quieras
-        </p>
-      </div>
-    </div>
-
-    <div className="order-1 md:order-2 relative min-h-[70vh] md:min-h-[80vh]">
-      <img
-        src="/images/hero.jpg"
-        alt="Fundador de TradePulse"
-        className="absolute inset-0 h-full w-full object-cover object-[85%_30%]"
-      />
-      <div className="absolute inset-0 bg-black/15 md:bg-black/10" />
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-32 md:w-40 bg-gradient-to-r from-white to-transparent dark:from-slate-900" />
-    </div>
-  </div>
-</section>
+      </section>
 
       {/* DEMO */}
       <section className="mt-12 grid gap-8 md:grid-cols-2 md:items-center">
