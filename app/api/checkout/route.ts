@@ -18,7 +18,9 @@ export async function POST(req: Request) {
     const cookieStore = await cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
@@ -34,6 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Price ID missing in env" }, { status: 500 });
     }
 
+    // Cargamos perfil
     const { data: profile } = await supabase
       .from("users")
       .select("stripe_customer_id, email, full_name")
@@ -41,6 +44,22 @@ export async function POST(req: Request) {
       .single();
 
     let customerId = profile?.stripe_customer_id || null;
+
+    // 1) Si hay customerId guardado, comprobamos que exista en la cuenta ACTUAL de Stripe
+    if (customerId) {
+      try {
+        const cust = await stripe.customers.retrieve(customerId);
+        // Si el customer está borrado (deleted customer) lo tratamos como inexistente
+        if ((cust as any)?.deleted) {
+          customerId = null;
+        }
+      } catch (err: any) {
+        // No existe en este modo (probablemente era de test y ahora estás en live)
+        customerId = null;
+      }
+    }
+
+    // 2) Si no tenemos customer válido, creamos uno nuevo y lo guardamos en BD
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: profile?.email || user.email || undefined,
@@ -51,6 +70,7 @@ export async function POST(req: Request) {
       await supabase.from("users").update({ stripe_customer_id: customerId }).eq("id", user.id);
     }
 
+    // 3) Creamos sesión de checkout
     const siteUrl = getBaseUrl();
 
     const session = await stripe.checkout.sessions.create({
@@ -61,6 +81,8 @@ export async function POST(req: Request) {
       success_url: `${siteUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/subscribe?plan=${plan}`,
       client_reference_id: user.id,
+      // Opcional: manda el plan para usarlo en el webhook si quieres
+      metadata: { plan },
     });
 
     return NextResponse.json({ url: session.url });
