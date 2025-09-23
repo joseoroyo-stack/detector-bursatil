@@ -1,11 +1,11 @@
 // app/login/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const sp = useSearchParams();
   const redirectTo = sp.get("redirect") || "/app";
@@ -40,7 +40,6 @@ export default function LoginPage() {
         throw new Error(j?.error || "No se pudo guardar la sesión.");
       }
 
-      // ¡Listo! Dentro de la plataforma
       router.replace(redirectTo);
     } catch (e: any) {
       setErr(e?.message || "Error de acceso");
@@ -87,5 +86,13 @@ export default function LoginPage() {
         </button>
       </form>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm">Cargando login…</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
