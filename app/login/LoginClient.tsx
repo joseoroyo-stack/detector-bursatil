@@ -1,4 +1,3 @@
-// app/login/LoginClient.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -15,17 +14,12 @@ export default function LoginClient() {
   const [loading, setLoading] = useState(false);
 
   // Obtenemos redirect desde la URL manualmente
-  const [redirect, setRedirect] = useState<string>("/");
-  useEffect(() => {
-    try {
-      const sp = new URLSearchParams(window.location.search);
-      setRedirect(sp.get("redirect") || "/");
-    } catch {
-      setRedirect("/");
-    }
-  }, []);
+  const redirect =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("redirect") || "/"
+      : "/";
 
-  // Si ya hay sesión, redirige a redirect
+  // Si ya hay sesión, redirige
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();
@@ -45,18 +39,6 @@ export default function LoginClient() {
         password: pass,
       });
       if (error) throw error;
-
-      // Sincroniza cookie HttpOnly del servidor (por si la usas en /api/*)
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        await fetch("/auth/callback", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          cache: "no-store",
-          body: JSON.stringify({ event: "SIGNED_IN", session: data.session }),
-        });
-      }
 
       router.replace(redirect);
     } catch (e: any) {
