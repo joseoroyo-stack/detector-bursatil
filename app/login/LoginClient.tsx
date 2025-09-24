@@ -14,7 +14,7 @@ export default function LoginClient() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Leemos redirect del query param SIN useSearchParams, para evitar el warning de Next.
+  // Obtenemos redirect desde la URL manualmente
   const [redirect, setRedirect] = useState<string>("/");
   useEffect(() => {
     try {
