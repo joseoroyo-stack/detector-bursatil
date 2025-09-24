@@ -14,17 +14,18 @@ export default function LoginClient() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Sustituto de useSearchParams
+  // Leemos redirect del query param SIN useSearchParams, para evitar el warning de Next.
   const [redirect, setRedirect] = useState<string>("/");
-
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      setRedirect(params.get("redirect") || "/");
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      setRedirect(sp.get("redirect") || "/");
+    } catch {
+      setRedirect("/");
     }
   }, []);
 
-  // Si ya hay sesión, redirige
+  // Si ya hay sesión, redirige a redirect
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();
@@ -44,6 +45,18 @@ export default function LoginClient() {
         password: pass,
       });
       if (error) throw error;
+
+      // Sincroniza cookie HttpOnly del servidor (por si la usas en /api/*)
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        await fetch("/auth/callback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+          body: JSON.stringify({ event: "SIGNED_IN", session: data.session }),
+        });
+      }
 
       router.replace(redirect);
     } catch (e: any) {
