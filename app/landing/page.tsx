@@ -3,7 +3,6 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 type Feature = {
   label: string;
@@ -13,8 +12,11 @@ type Feature = {
 };
 
 const FEATURES: Feature[] = [
+  // ✅ Solo estas dos quedan activas en Gratis
   { label: "Gráfico y señales básicas", free: true, premium: true, community: true },
   { label: "Watchlist y alertas locales", free: true, premium: true, community: true },
+
+  // El resto: solo Premium/Comunidad
   { label: "Scanner Top Picks (semáforo)", premium: true, community: true },
   { label: "Scanner Máximos históricos (near ATH)", premium: true, community: true },
   { label: "Gestión de riesgo avanzada (Soporte Power –3%)", premium: true, community: true },
@@ -26,60 +28,24 @@ const FEATURES: Feature[] = [
 
 function Tick({ on }: { on: boolean }) {
   return on ? (
-    <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px]">
-      ✓
-    </span>
+    <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px]">✓</span>
   ) : (
-    <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-slate-200 text-slate-500 text-[10px]">
-      —
-    </span>
+    <span className="inline-flex w-5 h-5 items-center justify-center rounded-full bg-slate-200 text-slate-500 text-[10px]">—</span>
   );
 }
 
 export default function PremiumLanding() {
+  // Pasar los utm params a los links
   const [qs, setQs] = useState("");
-  const [user, setUser] = useState<any>(null);
-  const supabase = createClientComponentClient();
-
   useEffect(() => {
     try {
       setQs(typeof window !== "undefined" ? window.location.search || "" : "");
-    } catch {
-      /* noop */
-    }
+    } catch {}
   }, []);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-    });
-  }, [supabase]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-14">
-      {/* === HEADER === */}
-      <header className="flex justify-between items-center py-4 mb-4">
-        <h1 className="text-xl font-bold">TradePulse</h1>
-        <div>
-          {user ? (
-            <Link
-              href="/app"
-              className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
-            >
-              Ir a la plataforma
-            </Link>
-          ) : (
-            <Link
-              href="/login"
-              className="px-4 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700"
-            >
-              Iniciar sesión
-            </Link>
-          )}
-        </div>
-      </header>
-
-      {/* === HERO === */}
+      {/* HERO */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-50 to-emerald-50 dark:from-slate-900 dark:to-slate-900">
         <div className="grid md:grid-cols-2">
           <div className="order-2 md:order-1 flex items-end md:items-center">
@@ -98,21 +64,6 @@ export default function PremiumLanding() {
                 >
                   Unirme a Premium
                 </Link>
-                {user ? (
-                  <Link
-                    href="/app"
-                    className="inline-flex items-center rounded-lg border border-emerald-600 px-5 py-3 text-emerald-700 font-semibold shadow hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-slate-800"
-                  >
-                    Ir a la plataforma
-                  </Link>
-                ) : (
-                  <Link
-                    href="/login"
-                    className="inline-flex items-center rounded-lg border border-sky-600 px-5 py-3 text-sky-700 font-semibold shadow hover:bg-sky-50 dark:text-sky-300 dark:hover:bg-slate-800"
-                  >
-                    Iniciar sesión
-                  </Link>
-                )}
               </div>
 
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
@@ -121,7 +72,7 @@ export default function PremiumLanding() {
             </div>
           </div>
 
-          <div className="order-1 md:order-2 relative min-h-[70vh] md:min-h-[80vh]">
+          <div className="order-1 md:order-2 relative min-h-[70vh] md:minh-[80vh]">
             <img
               src="/images/hero.jpg"
               alt="Fundador de TradePulse"
@@ -142,9 +93,7 @@ export default function PremiumLanding() {
           </p>
           <ul className="list-disc pl-5 text-slate-700 dark:text-slate-300 text-sm">
             <li>Semáforo claro (verde, naranja, rojo) según confluencias.</li>
-            <li>
-              Stop automático con <b>Soporte Power</b> (–3%).
-            </li>
+            <li>Stop automático con <b>Soporte Power</b> (–3%).</li>
             <li>Top Picks y Near ATH para ideas rápidas.</li>
           </ul>
         </div>
@@ -185,14 +134,17 @@ export default function PremiumLanding() {
           <h3 className="text-xl font-bold">Gratis</h3>
           <p className="text-sm text-slate-600 dark:text-slate-300">Empieza con lo esencial.</p>
           <div className="mt-3 text-3xl font-extrabold">0€</div>
+
+          {/* 👉 Solo mostramos las features activas en Gratis */}
           <ul className="mt-4 space-y-2 text-sm">
-            {FEATURES.map((f) => (
+            {FEATURES.filter((f) => !!f.free).map((f) => (
               <li key={f.label} className="flex items-center gap-2">
-                <Tick on={!!f.free} />
-                <span className={!f.free ? "text-slate-400 line-through" : ""}>{f.label}</span>
+                <Tick on={true} />
+                <span>{f.label}</span>
               </li>
             ))}
           </ul>
+
           <div className="mt-5">
             <Link
               href={`/subscribe?plan=free${qs}`}
@@ -276,22 +228,10 @@ export default function PremiumLanding() {
               <div>
                 <h3 className="text-xl font-semibold">Preguntas frecuentes</h3>
                 <div className="mt-3 space-y-3 text-sm text-slate-200">
-                  <div>
-                    <b>¿Qué incluye Gratis?</b>
-                    <p>Gráfico, señales básicas, Watchlist y alertas locales.</p>
-                  </div>
-                  <div>
-                    <b>¿Qué pasa tras 30 días?</b>
-                    <p>Si no sigues en Premium, pasas a Gratis automáticamente.</p>
-                  </div>
-                  <div>
-                    <b>¿Cómo cancelo?</b>
-                    <p>Desde tu panel, sin permanencia.</p>
-                  </div>
-                  <div>
-                    <b>¿Puedo pasar a Comunidad?</b>
-                    <p>Sí, incluye vídeo semanal y directo mensual.</p>
-                  </div>
+                  <div><b>¿Qué incluye Gratis?</b><p>Gráfico, señales básicas, Watchlist y alertas locales.</p></div>
+                  <div><b>¿Qué pasa tras 30 días?</b><p>Si no sigues en Premium, pasas a Gratis automáticamente.</p></div>
+                  <div><b>¿Cómo cancelo?</b><p>Desde tu panel, sin permanencia.</p></div>
+                  <div><b>¿Puedo pasar a Comunidad?</b><p>Sí, incluye vídeo semanal y directo mensual.</p></div>
                 </div>
               </div>
               <div className="self-center text-center md:text-right">
