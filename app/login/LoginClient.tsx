@@ -8,18 +8,26 @@ export default function LoginClient() {
   const supabase = useMemo(() => supabaseBrowser(), []);
   const router = useRouter();
 
+  const [redirect, setRedirect] = useState<string>("/");
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Obtenemos redirect desde la URL manualmente
-  const redirect =
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("redirect") || "/"
-      : "/";
+  // Leer ?redirect=... SIN useSearchParams
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const sp = new URLSearchParams(window.location.search);
+        const r = sp.get("redirect") || "/";
+        setRedirect(r);
+      }
+    } catch {
+      /* noop */
+    }
+  }, []);
 
-  // Si ya hay sesión, redirige
+  // Si ya hay sesión, redirige a redirect
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();
@@ -39,6 +47,18 @@ export default function LoginClient() {
         password: pass,
       });
       if (error) throw error;
+
+      // Empujar sesión a cookies HttpOnly en el servidor (por si tu API lo necesita)
+      const { data: after } = await supabase.auth.getSession();
+      if (after.session) {
+        await fetch("/auth/callback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+          body: JSON.stringify({ event: "SIGNED_IN", session: after.session }),
+        }).catch(() => {});
+      }
 
       router.replace(redirect);
     } catch (e: any) {
