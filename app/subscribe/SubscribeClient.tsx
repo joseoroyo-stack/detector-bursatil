@@ -1,8 +1,8 @@
 // app/subscribe/SubscribeClient.tsx
 "use client";
 
-import { useMemo, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 type FormState = {
@@ -18,8 +18,16 @@ type FormState = {
 export default function SubscribeClient() {
   const router = useRouter();
   const supabase = useMemo(() => supabaseBrowser(), []);
-  const params = useSearchParams();
-  const plan = (params.get("plan") || "premium") as "premium" | "comunidad" | "free";
+
+  // Sustituto de useSearchParams
+  const [params, setParams] = useState<URLSearchParams | null>(null);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setParams(new URLSearchParams(window.location.search));
+    }
+  }, []);
+
+  const plan = (params?.get("plan") || "premium") as "premium" | "comunidad" | "free";
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -35,23 +43,24 @@ export default function SubscribeClient() {
   });
 
   const utm = {
-    utm_source: params.get("utm_source") || "",
-    utm_medium: params.get("utm_medium") || "",
-    utm_campaign: params.get("utm_campaign") || "",
-    utm_term: params.get("utm_term") || "",
-    utm_content: params.get("utm_content") || "",
+    utm_source: params?.get("utm_source") || "",
+    utm_medium: params?.get("utm_medium") || "",
+    utm_campaign: params?.get("utm_campaign") || "",
+    utm_term: params?.get("utm_term") || "",
+    utm_content: params?.get("utm_content") || "",
   };
 
   const title =
-    plan === "free" ? "Activar cuenta Gratis" :
-    plan === "premium" ? "Suscripción Premium" : "Suscripción Comunidad";
+    plan === "free"
+      ? "Activar cuenta Gratis"
+      : plan === "premium"
+      ? "Suscripción Premium"
+      : "Suscripción Comunidad";
 
   async function ensureAuth(email: string, password: string) {
-    // 1) ¿ya logueado?
     const { data: sessionD } = await supabase.auth.getSession();
     if (sessionD.session) return sessionD.session;
 
-    // 2) intentar signUp (si existe, hacemos signIn)
     const { error: signUpErr } = await supabase.auth.signUp({
       email,
       password,
@@ -78,7 +87,6 @@ export default function SubscribeClient() {
       }
     }
 
-    // 3) sincronizar sesión al servidor para que /api/* vea al user
     const { data: after } = await supabase.auth.getSession();
     if (!after.session) throw new Error("No hay sesión tras autenticación.");
     await fetch("/auth/callback", {
@@ -97,10 +105,8 @@ export default function SubscribeClient() {
     setErr(null);
     setLoading(true);
     try {
-      // Asegura autenticación (crea o entra)
       await ensureAuth(form.email.trim(), form.password);
 
-      // Guardar perfil + UTM (el server necesita la cookie de sesión)
       const r1 = await fetch("/api/profile-upsert", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -120,7 +126,6 @@ export default function SubscribeClient() {
       if (!r1.ok) throw new Error(j1?.error || "No se pudo guardar tu perfil");
 
       if (plan === "free") {
-        // Alta gratis/trial sin Stripe
         const r = await fetch("/api/free-enroll", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -130,11 +135,10 @@ export default function SubscribeClient() {
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok || !j?.ok) throw new Error(j?.error || "No se pudo activar Gratis");
-        router.replace("/"); // dentro de la app
+        router.replace("/"); // plataforma
         return;
       }
 
-      // Checkout Stripe para premium/comunidad
       const r2 = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
