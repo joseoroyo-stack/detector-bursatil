@@ -1,9 +1,8 @@
-// app/home-client.tsx
 "use client";
 
 import React, { useMemo, useState, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+// ⛔️ Quitado: import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 
 import { Button } from "@/components/ui/button";
@@ -341,10 +340,16 @@ function StockSignalApp(){
   const [error, setError] = useState<string|null>(null);
   const [conclusion, setConclusion] = useState<any>(null);
 
-  const searchParams = useSearchParams();
-  useAlertChecker();
+  // ✅ Sin useSearchParams: leer ticker de la URL manualmente
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const urlTicker = sp.get("ticker");
+      if (urlTicker) setTicker(urlTicker.toUpperCase());
+    }
+  }, []);
 
-  React.useEffect(()=>{ const urlTicker=searchParams.get("ticker"); if(urlTicker) setTicker(urlTicker.toUpperCase()); },[searchParams]);
+  useAlertChecker();
 
   const analyze = async ()=>{
     try{
@@ -449,7 +454,7 @@ function StockSignalApp(){
             ) : <div className="text-sm text-muted-foreground">Introduce un ticker y pulsa “Analizar”.</div>}
             {conclusion && (
               <div className="mt-3 flex items-center gap-2 rounded-lg px-3 py-2" style={{backgroundColor:conclusion.color==="green"?"#dcfce7":conclusion.color==="orange"?"#fef9c3":"#fee2e2"}}>
-                <span className={`w-3 h-3 rounded-full ${conclusion.color==="green" ? "bg-green-500" : conclusion.color==="red" ? "bg-red-500" : "bg-yellow-500"}`} />
+                <span className={`w-3 h-3 rounded-full ${conclusion.color==="green" ? "bg-green-500" : conclusion.color==="red" ? "bg-red-500" : "bg-amber-500"}`} />
                 <div className="text-sm">{conclusion.text}</div>
               </div>
             )}
@@ -545,7 +550,7 @@ function StockSignalApp(){
   );
 }
 
-/* Suspense por useSearchParams */
+/* Suspense por lectura de query vía window */
 export default function HomeClient(){
   return (
     <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Cargando…</div>}>

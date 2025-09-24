@@ -1,4 +1,3 @@
-// app/subscribe/SubscribeClient.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -15,19 +14,41 @@ type FormState = {
   password: string;
 };
 
+type Plan = "premium" | "comunidad" | "free";
+
 export default function SubscribeClient() {
   const router = useRouter();
   const supabase = useMemo(() => supabaseBrowser(), []);
 
-  // Sustituto de useSearchParams
-  const [params, setParams] = useState<URLSearchParams | null>(null);
+  // Estado derivado de la URL (sin useSearchParams)
+  const [plan, setPlan] = useState<Plan>("premium");
+  const [utm, setUtm] = useState({
+    utm_source: "",
+    utm_medium: "",
+    utm_campaign: "",
+    utm_term: "",
+    utm_content: "",
+  });
+
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      setParams(new URLSearchParams(window.location.search));
+    try {
+      if (typeof window !== "undefined") {
+        const sp = new URLSearchParams(window.location.search);
+        const rawPlan = (sp.get("plan") || "premium") as Plan;
+        setPlan(rawPlan);
+
+        setUtm({
+          utm_source: sp.get("utm_source") || "",
+          utm_medium: sp.get("utm_medium") || "",
+          utm_campaign: sp.get("utm_campaign") || "",
+          utm_term: sp.get("utm_term") || "",
+          utm_content: sp.get("utm_content") || "",
+        });
+      }
+    } catch {
+      /* noop */
     }
   }, []);
-
-  const plan = (params?.get("plan") || "premium") as "premium" | "comunidad" | "free";
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -42,25 +63,16 @@ export default function SubscribeClient() {
     password: "",
   });
 
-  const utm = {
-    utm_source: params?.get("utm_source") || "",
-    utm_medium: params?.get("utm_medium") || "",
-    utm_campaign: params?.get("utm_campaign") || "",
-    utm_term: params?.get("utm_term") || "",
-    utm_content: params?.get("utm_content") || "",
-  };
-
   const title =
-    plan === "free"
-      ? "Activar cuenta Gratis"
-      : plan === "premium"
-      ? "Suscripción Premium"
-      : "Suscripción Comunidad";
+    plan === "free" ? "Activar cuenta Gratis" :
+    plan === "premium" ? "Suscripción Premium" : "Suscripción Comunidad";
 
   async function ensureAuth(email: string, password: string) {
+    // 1) ¿ya logueado?
     const { data: sessionD } = await supabase.auth.getSession();
     if (sessionD.session) return sessionD.session;
 
+    // 2) intentar signUp (si existe, signIn)
     const { error: signUpErr } = await supabase.auth.signUp({
       email,
       password,
@@ -87,6 +99,7 @@ export default function SubscribeClient() {
       }
     }
 
+    // 3) empujar sesión a cookies HttpOnly (lado servidor)
     const { data: after } = await supabase.auth.getSession();
     if (!after.session) throw new Error("No hay sesión tras autenticación.");
     await fetch("/auth/callback", {
@@ -105,8 +118,10 @@ export default function SubscribeClient() {
     setErr(null);
     setLoading(true);
     try {
+      // Asegura autenticación (crea o entra)
       await ensureAuth(form.email.trim(), form.password);
 
+      // Guardar perfil + UTM (el server necesita la cookie de sesión)
       const r1 = await fetch("/api/profile-upsert", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,6 +141,7 @@ export default function SubscribeClient() {
       if (!r1.ok) throw new Error(j1?.error || "No se pudo guardar tu perfil");
 
       if (plan === "free") {
+        // Alta gratis/trial sin Stripe
         const r = await fetch("/api/free-enroll", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -135,10 +151,11 @@ export default function SubscribeClient() {
         });
         const j = await r.json().catch(() => ({}));
         if (!r.ok || !j?.ok) throw new Error(j?.error || "No se pudo activar Gratis");
-        router.replace("/"); // plataforma
+        router.replace("/"); // entra en la app
         return;
       }
 
+      // Checkout Stripe para premium/comunidad
       const r2 = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
