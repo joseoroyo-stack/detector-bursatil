@@ -2,19 +2,27 @@
 import { supabaseServer } from "@/lib/supabaseServer";
 import Link from "next/link";
 
-export const dynamic = "force-dynamic"; // evita cache, depende de sesión/DB
+export const dynamic = "force-dynamic";
 
-export default async function ScannerLayout({
-  children,
-}: { children: React.ReactNode }) {
-  // tu helper es async → mejor esperar explícitamente al cliente
-  const supabase = await supabaseServer();
+export default async function ScannerLayout({ children }: { children: React.ReactNode }) {
+  // tu helper es async
+  let supabase: Awaited<ReturnType<typeof supabaseServer>>;
+  try {
+    supabase = await supabaseServer();
+  } catch {
+    // si fallara algo raro con cookies/SSR => fail-open
+    return <>{children}</>;
+  }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 1) usuario
+  let user = null as any;
+  try {
+    const res = await supabase.auth.getUser();
+    user = res.data.user;
+  } catch {
+    // si falla auth => mostramos login
+  }
 
-  // Si no está logueado, pedir login (idealmente con redirect para volver a /scanner)
   if (!user) {
     return (
       <div className="max-w-xl mx-auto py-12">
@@ -28,30 +36,37 @@ export default async function ScannerLayout({
     );
   }
 
-  // Lee perfil (plan y fin de trial). Soportamos ambas columnas: trial_expires_at | trial_ends_at
-  const { data: profile } = await supabase
-    .from("users")
-    .select("plan, premium, trial_expires_at, trial_ends_at")
-    .eq("id", user.id)
-    .single();
+  // 2) perfil (fail-open si hay cualquier problema)
+  type Profile = { plan?: string | null; premium?: boolean | null; trial_expires_at?: string | null; trial_ends_at?: string | null };
+  let profile: Profile | null = null;
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("plan, premium, trial_expires_at, trial_ends_at")
+      .eq("id", user.id)
+      .single();
 
+    if (error) {
+      // RLS o columnas inexistentes: NO bloqueamos la app
+      return <>{children}</>;
+    }
+    profile = data as Profile | null;
+  } catch {
+    return <>{children}</>; // fail-open
+  }
+
+  // 3) lógica de acceso (solo bloqueamos cuando estamos seguros)
   const now = new Date();
-  const rawTrialEnd =
-    (profile as any)?.trial_expires_at ??
-    (profile as any)?.trial_ends_at ??
-    null;
-
+  const rawTrialEnd = profile?.trial_expires_at ?? profile?.trial_ends_at ?? null;
   const trialActive = rawTrialEnd ? new Date(rawTrialEnd) > now : false;
+  const plan = (profile?.plan ?? "free") as "free" | "premium" | "comunidad";
+  const premiumFlag = Boolean(profile?.premium);
 
-  const plan = (profile?.plan ?? null) as null | "free" | "premium" | "comunidad";
-  const premiumFlag = Boolean((profile as any)?.premium);
-  const hasFullAccess =
-    trialActive || premiumFlag || plan === "premium" || plan === "comunidad";
+  const hasFullAccess = trialActive || premiumFlag || plan === "premium" || plan === "comunidad";
 
-  // Acceso completo → muestra tu scanner original (children)
   if (hasFullAccess) return <>{children}</>;
 
-  // Gratis tras el trial → modo básico + CTA
+  // Gratis (cuando sabemos con certeza que no hay trial ni premium)
   return (
     <div className="max-w-3xl mx-auto py-12">
       <h1 className="text-2xl font-bold mb-4">Acceso limitado (plan Gratis)</h1>
@@ -60,7 +75,6 @@ export default async function ScannerLayout({
         <b> Watchlist y alertas locales</b>. Para desbloquear el escáner completo, pásate a Premium.
       </p>
 
-      {/* Aquí puedes renderizar tu vista básica (gráfico + señales) */}
       <div className="rounded border p-6 mb-8">
         <p className="opacity-70">Aquí iría tu vista básica del gráfico y señales.</p>
       </div>
