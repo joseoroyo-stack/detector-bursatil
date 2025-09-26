@@ -7,35 +7,46 @@ export const dynamic = "force-dynamic"; // evita cache, depende de sesión/DB
 export default async function ScannerLayout({
   children,
 }: { children: React.ReactNode }) {
-  const supabase = supabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
+  // tu helper es async → mejor esperar explícitamente al cliente
+  const supabase = await supabaseServer();
 
-  // Si no está logueado, pedir login (para activar la prueba)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Si no está logueado, pedir login (idealmente con redirect para volver a /scanner)
   if (!user) {
     return (
       <div className="max-w-xl mx-auto py-12">
         <h1 className="text-2xl font-bold mb-2">Inicia sesión para probar 30 días</h1>
         <p className="mb-6">Con una cuenta podrás usar toda la plataforma durante 30 días.</p>
         <div className="flex gap-3">
-          <Link href="/login" className="px-4 py-2 rounded bg-black text-white">Entrar</Link>
+          <Link href="/login?redirect=/scanner" className="px-4 py-2 rounded bg-black text-white">Entrar</Link>
           <Link href="/pricing" className="px-4 py-2 rounded border">Ver planes</Link>
         </div>
       </div>
     );
   }
 
-  // Lee perfil (plan y fin de trial)
+  // Lee perfil (plan y fin de trial). Soportamos ambas columnas: trial_expires_at | trial_ends_at
   const { data: profile } = await supabase
     .from("users")
-    .select("plan, trial_ends_at")
+    .select("plan, premium, trial_expires_at, trial_ends_at")
     .eq("id", user.id)
     .single();
 
   const now = new Date();
-  const trial = profile?.trial_ends_at ? new Date(profile.trial_ends_at) > now : false;
-  const plan = (profile?.plan ?? null) as null | "premium" | "comunidad";
+  const rawTrialEnd =
+    (profile as any)?.trial_expires_at ??
+    (profile as any)?.trial_ends_at ??
+    null;
 
-  const hasFullAccess = trial || plan === "premium" || plan === "comunidad";
+  const trialActive = rawTrialEnd ? new Date(rawTrialEnd) > now : false;
+
+  const plan = (profile?.plan ?? null) as null | "free" | "premium" | "comunidad";
+  const premiumFlag = Boolean((profile as any)?.premium);
+  const hasFullAccess =
+    trialActive || premiumFlag || plan === "premium" || plan === "comunidad";
 
   // Acceso completo → muestra tu scanner original (children)
   if (hasFullAccess) return <>{children}</>;
@@ -49,7 +60,7 @@ export default async function ScannerLayout({
         <b> Watchlist y alertas locales</b>. Para desbloquear el escáner completo, pásate a Premium.
       </p>
 
-      {/* Aquí puedes mostrar tu gráfico/señales básicas si quieres */}
+      {/* Aquí puedes renderizar tu vista básica (gráfico + señales) */}
       <div className="rounded border p-6 mb-8">
         <p className="opacity-70">Aquí iría tu vista básica del gráfico y señales.</p>
       </div>

@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
 type Feature = {
   label: string;
@@ -34,6 +35,114 @@ function Tick({ on }: { on: boolean }) {
   );
 }
 
+/* ---------------------------
+   CTA dinámico según estado
+----------------------------*/
+function AccessCTA() {
+  const supabase = supabaseBrowser();
+  const [loading, setLoading] = useState(true);
+  const [isLogged, setIsLogged] = useState(false);
+  const [isPremium, setIsPremium] = useState(false); // premium o comunidad
+  const [onTrial, setOnTrial] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          if (active) {
+            setIsLogged(false);
+            setIsPremium(false);
+            setOnTrial(false);
+            setLoading(false);
+          }
+          return;
+        }
+
+        setIsLogged(true);
+
+        // Intentar activar prueba de 30 días (si existe la ruta). Si no existe, no pasa nada.
+        try {
+          await fetch("/api/free-enroll", { method: "POST" });
+        } catch {}
+
+        // Leer perfil
+        const { data: profile } = await supabase
+          .from("users")
+          .select("premium, plan, trial_expires_at")
+          .eq("id", user.id)
+          .single();
+
+        const now = new Date();
+        const trial = profile?.trial_expires_at ? new Date(profile.trial_expires_at) > now : false;
+        const premiumFlag = !!profile?.premium || (!!profile?.plan && profile.plan !== "free");
+
+        if (active) {
+          setIsPremium(premiumFlag);
+          setOnTrial(trial);
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
+    return () => { active = false; };
+  }, [supabase]);
+
+  if (loading) return null;
+
+  // Logueado con premium/comunidad o trial activo → acceso completo
+  if (isLogged && (isPremium || onTrial)) {
+    return (
+      <Link
+        href="/scanner"
+        className="inline-flex items-center rounded-lg bg-black px-5 py-3 text-white font-semibold shadow hover:opacity-90"
+      >
+        {onTrial && !isPremium ? "Ir a la plataforma (Prueba 30 días)" : "Ir a la plataforma"}
+      </Link>
+    );
+  }
+
+  // Logueado pero sin trial (vencido) → solo gratis
+  if (isLogged) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <Link
+          href="/scanner"
+          className="inline-flex items-center rounded-lg border px-5 py-3 font-semibold shadow hover:bg-slate-50 dark:hover:bg-slate-800"
+        >
+          Entrar (Gratis)
+        </Link>
+        <Link
+          href="/pricing"
+          className="inline-flex items-center rounded-lg bg-emerald-600 px-5 py-3 text-white font-semibold shadow hover:bg-emerald-700"
+        >
+          Hazte Premium
+        </Link>
+      </div>
+    );
+  }
+
+  // No logueado
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <Link
+        href="/login?redirect=/scanner"
+        className="inline-flex items-center rounded-lg bg-black px-5 py-3 text-white font-semibold shadow hover:opacity-90"
+      >
+        Entrar
+      </Link>
+      <Link
+        href="/pricing"
+        className="inline-flex items-center rounded-lg border px-5 py-3 font-semibold shadow hover:bg-slate-50 dark:hover:bg-slate-800"
+      >
+        Ver precios
+      </Link>
+    </div>
+  );
+}
+
 export default function PremiumLanding() {
   // Pasar los utm params a los links
   const [qs, setQs] = useState("");
@@ -57,13 +166,9 @@ export default function PremiumLanding() {
                 Señales claras, riesgo bajo control y un escáner que te ahorra tiempo.
               </p>
 
+              {/* CTA dinámico */}
               <div className="mt-5 flex flex-wrap items-center gap-3">
-                <Link
-                  href={`/subscribe?plan=premium${qs}`}
-                  className="inline-flex items-center rounded-lg bg-emerald-600 px-5 py-3 text-white font-semibold shadow hover:bg-emerald-700"
-                >
-                  Unirme a Premium
-                </Link>
+                <AccessCTA />
               </div>
 
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
@@ -72,7 +177,7 @@ export default function PremiumLanding() {
             </div>
           </div>
 
-          <div className="order-1 md:order-2 relative min-h-[70vh] md:minh-[80vh]">
+          <div className="order-1 md:order-2 relative min-h-[70vh] md:min-h-[80vh]">
             <img
               src="/images/hero.jpg"
               alt="Fundador de TradePulse"
